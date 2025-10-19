@@ -4,6 +4,7 @@ from .core import SettingsManager
 from .models import SettingFile, CharacterESIResponse
 from .platform_detector import Platform, detect_platform
 from .paths import EVEPathResolver
+from .backup_manager import BackupManager
 from .exceptions import (
     PyEveSettingsError,
     DataFileError,
@@ -21,6 +22,7 @@ __all__ = [
     'Platform',
     'detect_platform',
     'EVEPathResolver',
+    'BackupManager',
     'PyEveSettingsError',
     'DataFileError',
     'ESIError',

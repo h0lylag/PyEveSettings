@@ -88,7 +88,24 @@ def create_profiles_panel(parent: ttk.Frame) -> dict:
     profiles_scroll.grid(row=0, column=1, sticky="ns")
     profiles_listbox.configure(yscrollcommand=profiles_scroll.set)
     
-    return {'profiles_listbox': profiles_listbox}
+    # Backup button
+    backup_btn = ttk.Button(profiles_frame, text="Backup Profile")
+    backup_btn.grid(row=1, column=0, columnspan=2, pady=(5, 2), sticky="ew")
+    
+    # Backup status label (fixed 2-line height, wraps text)
+    backup_status_var = tk.StringVar()
+    backup_status_var.set("Ready")
+    backup_status_label = ttk.Label(profiles_frame, textvariable=backup_status_var, 
+                                    font=("Segoe UI", 8), foreground="gray", anchor="center",
+                                    wraplength=280, justify="center")
+    backup_status_label.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(0, 5), ipady=8)
+    
+    return {
+        'profiles_listbox': profiles_listbox,
+        'backup_btn': backup_btn,
+        'backup_status_var': backup_status_var,
+        'backup_status_label': backup_status_label
+    }
 
 
 def create_characters_panel(parent: ttk.Frame) -> dict:

@@ -8,7 +8,7 @@ from pathlib import Path
 
 from data import DataFile, WindowSettings, NotesManager
 from esi import ESICache, ESIClient
-from utils import EVEPathResolver
+from utils import EVEPathResolver, BackupManager
 from utils.core import SettingsManager
 from utils.models import SettingFile
 from utils import DataFileError, PlatformNotSupportedError
@@ -131,6 +131,9 @@ class PyEveSettingsGUI:
             else:
                 self.current_server = 'Tranquility'
             
+            # Initialize backup manager
+            self.backup_manager = BackupManager()
+            
             # Initialize settings manager with dependencies
             self.manager = SettingsManager(self.path_resolver, self.api_cache)
         except PlatformNotSupportedError as e:
@@ -163,6 +166,7 @@ class PyEveSettingsGUI:
         self.profiles_listbox = widgets['profiles_listbox']
         self.chars_tree = widgets['chars_tree']
         self.accounts_tree = widgets['accounts_tree']
+        self.backup_status_var = widgets['backup_status_var']
         
         # Store button widgets for event handler binding
         self._widgets = widgets
@@ -179,6 +183,9 @@ class PyEveSettingsGUI:
         
         # Connect server selection handler
         self.server_combo.bind('<<ComboboxSelected>>', self._on_server_changed)
+        
+        # Connect backup button handler
+        self._widgets['backup_btn'].config(command=self._on_backup_profile)
         
         # Connect event handlers to widgets
         self.profiles_listbox.bind('<<ListboxSelect>>', self.handlers.on_profile_selected)
@@ -255,6 +262,104 @@ class PyEveSettingsGUI:
             # Reload in background
             self.loading = True
             self.root.after(100, self.start_loading_data)
+    
+    def _on_backup_profile(self) -> None:
+        """Handle backup button click."""
+        print("[DEBUG GUI] _on_backup_profile called")
+        
+        # Check if a profile is selected
+        selection = self.profiles_listbox.curselection()
+        print(f"[DEBUG GUI] Selection: {selection}")
+        
+        if not selection:
+            print("[DEBUG GUI] No profile selected")
+            self.backup_status_var.set("Please select a profile first")
+            self._widgets['backup_status_label'].config(foreground="red")
+            return
+        
+        # Get selected profile folder
+        folder_index = selection[0]
+        print(f"[DEBUG GUI] Folder index: {folder_index}, total folders: {len(self.settings_folders)}")
+        
+        if folder_index >= len(self.settings_folders):
+            print("[DEBUG GUI] Invalid folder index")
+            self.backup_status_var.set("Invalid profile selection")
+            self._widgets['backup_status_label'].config(foreground="red")
+            return
+        
+        profile_folder = self.settings_folders[folder_index]
+        print(f"[DEBUG GUI] Profile folder: {profile_folder}")
+        
+        # Update backup manager base path
+        base_path = self.path_resolver.get_base_path()
+        print(f"[DEBUG GUI] Base path: {base_path}")
+        
+        if not base_path:
+            print("[DEBUG GUI] Could not determine base path")
+            self.backup_status_var.set("Could not determine base path")
+            self._widgets['backup_status_label'].config(foreground="red")
+            return
+        
+        print("[DEBUG GUI] Setting backup manager base path")
+        self.backup_manager.set_base_path(base_path)
+        
+        # Show in-progress status
+        print("[DEBUG GUI] Updating UI to show 'Creating backup...'")
+        self.backup_status_var.set("Creating backup...")
+        self._widgets['backup_status_label'].config(foreground="blue")
+        self.root.update_idletasks()
+        
+        # Store result in instance variable for periodic checking
+        self._backup_result = None
+        
+        # Create backup in background thread
+        def backup_thread():
+            print("[DEBUG GUI] Backup thread started", flush=True)
+            try:
+                print("[DEBUG GUI] Calling backup_manager.create_backup...", flush=True)
+                success, message, backup_path = self.backup_manager.create_backup(profile_folder)
+                print(f"[DEBUG GUI] Backup result: success={success}, message={message}", flush=True)
+                
+                # Store result for main thread to pick up
+                if success:
+                    status_msg = f"✓ Completed: {message}"
+                    self._backup_result = (status_msg, "green")
+                else:
+                    status_msg = f"✗ Failed: {message}"
+                    self._backup_result = (status_msg, "red")
+                
+                print(f"[DEBUG GUI] Result stored: {self._backup_result}", flush=True)
+                
+            except Exception as e:
+                print(f"[DEBUG GUI] Exception in backup thread: {type(e).__name__}: {e}", flush=True)
+                import traceback
+                traceback.print_exc()
+                error_msg = f"✗ Error: {str(e)[:50]}"
+                self._backup_result = (error_msg, "red")
+            finally:
+                print("[DEBUG GUI] Backup thread finishing", flush=True)
+        
+        # Start checking for result
+        def check_backup_result():
+            print(f"[DEBUG GUI] Checking backup result: {self._backup_result}", flush=True)
+            if self._backup_result is not None:
+                status_msg, color = self._backup_result
+                print(f"[DEBUG GUI] Updating UI: {status_msg} ({color})", flush=True)
+                self.backup_status_var.set(status_msg)
+                self._widgets['backup_status_label'].config(foreground=color)
+                self._backup_result = None  # Reset
+                print("[DEBUG GUI] UI updated successfully", flush=True)
+            else:
+                # Keep checking every 100ms
+                self.root.after(100, check_backup_result)
+        
+        print("[DEBUG GUI] Starting backup thread", flush=True)
+        thread = threading.Thread(target=backup_thread, daemon=True)
+        thread.start()
+        
+        # Start checking for results after 100ms
+        self.root.after(100, check_backup_result)
+        print("[DEBUG GUI] Backup thread started, periodic check scheduled", flush=True)
     
     def start_loading_data(self) -> None:
         """Start loading data in a background thread."""
