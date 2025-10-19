@@ -6,11 +6,13 @@ from pathlib import Path
 from datetime import datetime, timezone
 from typing import Optional, List, Dict
 from dataclasses import dataclass
-import requests
+import http.client
+import urllib.parse
 import json
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import os
+import socket
 
 
 @dataclass
@@ -242,22 +244,41 @@ class SettingFile:
         """
         global _INVALID_CHARACTER_IDS
         
-        url = f"https://esi.evetech.net/latest/characters/{char_id}/"
-        headers = {'Accept': 'application/json'}
-        
         for attempt in range(max_retries):
             try:
-                response = requests.get(url, headers=headers, timeout=10)
+                # Create HTTPS connection
+                conn = http.client.HTTPSConnection("esi.evetech.net", timeout=10)
                 
-                if response.status_code == 200:
-                    data = response.json()
-                    return data.get('name')
-                elif response.status_code == 404:
+                # Set up headers
+                headers = {
+                    'Accept': 'application/json',
+                    'User-Agent': 'PyEveSettings'
+                }
+                
+                # Make the request
+                path = f"/latest/characters/{char_id}/"
+                conn.request("GET", path, headers=headers)
+                
+                # Get response
+                response = conn.getresponse()
+                data = response.read()
+                
+                # Close connection
+                conn.close()
+                
+                if response.status == 200:
+                    try:
+                        json_data = json.loads(data.decode('utf-8'))
+                        return json_data.get('name')
+                    except json.JSONDecodeError:
+                        print(f"  JSON decode error for character {char_id}")
+                        return None
+                elif response.status == 404:
                     # Invalid character ID - don't retry and mark as invalid
                     print(f"  Character {char_id} not found (invalid ID)")
                     _INVALID_CHARACTER_IDS.add(char_id)
                     return None
-                elif response.status_code >= 500:
+                elif response.status >= 500:
                     # Server error - retry
                     if attempt < max_retries - 1:
                         print(f"  Server error for {char_id}, retrying...")
@@ -265,10 +286,10 @@ class SettingFile:
                     return None
                 else:
                     # Other error - don't retry
-                    print(f"  Error {response.status_code} for character {char_id}")
+                    print(f"  Error {response.status} for character {char_id}")
                     return None
                     
-            except requests.exceptions.Timeout:
+            except socket.timeout:
                 # Timeout - retry
                 if attempt < max_retries - 1:
                     print(f"  Timeout for character {char_id}, retrying (attempt {attempt + 2}/{max_retries})...")
@@ -277,7 +298,7 @@ class SettingFile:
                     print(f"  Timeout for character {char_id} after {max_retries} attempts")
                     return None
                     
-            except requests.exceptions.ConnectionError:
+            except (socket.error, ConnectionError):
                 # Connection error - retry
                 if attempt < max_retries - 1:
                     print(f"  Connection error for {char_id}, retrying...")
