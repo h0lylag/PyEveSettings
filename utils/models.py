@@ -37,8 +37,16 @@ _ACCOUNT_NOTES: Dict[int, str] = {}
 # Set of invalid character IDs (404s from API)
 _INVALID_CHARACTER_IDS: set = set()
 
-# Cache file path
-_CACHE_FILE = Path(__file__).parent.parent / "PyEveSettings.json"
+# Window settings cache (size and position)
+_WINDOW_SETTINGS: Dict[str, Optional[int]] = {
+    "width": 1200,
+    "height": 600,
+    "x_pos": None,  # None means center on screen
+    "y_pos": None
+}
+
+# Data file path
+_DATA_FILE = Path(__file__).parent.parent / "pyevesettings_data.json"
 
 
 class SettingFile:
@@ -89,7 +97,7 @@ class SettingFile:
     @staticmethod
     def load_cache() -> Dict[int, str]:
         """Load character names, notes, and invalid IDs from cache file"""
-        global _INVALID_CHARACTER_IDS, _CHARACTER_NOTES, _ACCOUNT_NOTES
+        global _INVALID_CHARACTER_IDS, _CHARACTER_NOTES, _ACCOUNT_NOTES, _WINDOW_SETTINGS, _CHARACTER_NAME_CACHE
         
         if _CACHE_FILE.exists():
             try:
@@ -97,6 +105,21 @@ class SettingFile:
                     data = json.load(f)
                     
                     names = {}
+                    
+                    # Load window settings if present
+                    if 'window_settings' in data:
+                        ws = data['window_settings']
+                        _WINDOW_SETTINGS['width'] = ws.get('width', 1200)
+                        _WINDOW_SETTINGS['height'] = ws.get('height', 600)
+                        _WINDOW_SETTINGS['x_pos'] = ws.get('x_pos', ws.get('x'))  # Support old 'x' key
+                        _WINDOW_SETTINGS['y_pos'] = ws.get('y_pos', ws.get('y'))  # Support old 'y' key
+                    # Backwards compatibility: load old window_size format
+                    elif 'window_size' in data:
+                        size_str = data['window_size']
+                        if 'x' in size_str:
+                            parts = size_str.split('x')
+                            _WINDOW_SETTINGS['width'] = int(parts[0])
+                            _WINDOW_SETTINGS['height'] = int(parts[1])
                     
                     # New flat format: character_ids at root level
                     if 'character_ids' in data and isinstance(data['character_ids'], dict):
@@ -181,6 +204,9 @@ class SettingFile:
                                 elif isinstance(acct_data, str):
                                     _ACCOUNT_NOTES[acct_id_int] = acct_data
                     
+                    # Update the global character name cache
+                    _CHARACTER_NAME_CACHE.update(names)
+                    
                     return names
             except Exception as e:
                 print(f"Warning: Could not load cache: {e}")
@@ -223,6 +249,12 @@ class SettingFile:
             # Save to file with flat structure
             with open(_CACHE_FILE, 'w') as f:
                 data = {
+                    'window_settings': {
+                        'width': _WINDOW_SETTINGS['width'],
+                        'height': _WINDOW_SETTINGS['height'],
+                        'x_pos': _WINDOW_SETTINGS['x_pos'],
+                        'y_pos': _WINDOW_SETTINGS['y_pos']
+                    },
                     'character_ids': character_ids,
                     'account_ids': account_ids
                 }
@@ -450,3 +482,27 @@ def get_all_account_notes() -> Dict[int, str]:
 def is_character_valid(char_id: int) -> bool:
     """Check if a character ID is valid (not in invalid list)"""
     return char_id not in _INVALID_CHARACTER_IDS
+
+
+def get_window_settings() -> Dict[str, Optional[int]]:
+    """Get the saved window settings (width, height, x_pos, y_pos)"""
+    return _WINDOW_SETTINGS.copy()
+
+
+def set_window_settings(width: int, height: int, x_pos: Optional[int] = None, y_pos: Optional[int] = None) -> None:
+    """
+    Set and save the window settings (size and position)
+    
+    Args:
+        width: Window width in pixels
+        height: Window height in pixels
+        x_pos: Window x position (optional, None means centered)
+        y_pos: Window y position (optional, None means centered)
+    """
+    global _WINDOW_SETTINGS
+    _WINDOW_SETTINGS['width'] = width
+    _WINDOW_SETTINGS['height'] = height
+    _WINDOW_SETTINGS['x_pos'] = x_pos
+    _WINDOW_SETTINGS['y_pos'] = y_pos
+    # Save cache to persist window settings
+    SettingFile.save_cache(_CHARACTER_NAME_CACHE)
