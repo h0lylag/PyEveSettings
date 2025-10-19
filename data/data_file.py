@@ -365,6 +365,40 @@ class DataFile:
             'y_pos': y_pos
         }
     
+    def get_default_sorting(self) -> str:
+        """Get default sorting preference.
+        
+        Returns:
+            Sorting preference string (e.g., 'name_asc', 'id_desc', 'date_asc').
+            Defaults to 'name_asc' if not set.
+        """
+        window_settings = self._data.get('window_settings', {})
+        return window_settings.get('default_sorting', 'name_asc')
+    
+    def set_default_sorting(self, sort_preference: str) -> None:
+        """Set default sorting preference.
+        
+        Args:
+            sort_preference: Sorting preference string (e.g., 'name_asc', 'id_desc', 'date_asc').
+        """
+        valid_options = ['name_asc', 'name_desc', 'id_asc', 'id_desc', 'date_asc', 'date_desc']
+        if sort_preference not in valid_options:
+            raise ValidationError(
+                f"Invalid sort preference '{sort_preference}'. Must be one of: {', '.join(valid_options)}"
+            )
+        
+        # Ensure window_settings exists
+        if 'window_settings' not in self._data:
+            self._data['window_settings'] = {
+                'width': 800,
+                'height': 600,
+                'x_pos': 0,
+                'y_pos': 0,
+                'default_sorting': 'name_asc'
+            }
+        
+        self._data['window_settings']['default_sorting'] = sort_preference
+    
     @staticmethod
     def _get_default_structure() -> Dict:
         """Get the default data structure.
@@ -377,7 +411,8 @@ class DataFile:
                 'width': 800,
                 'height': 600,
                 'x_pos': 0,
-                'y_pos': 0
+                'y_pos': 0,
+                'default_sorting': 'name_asc'
             },
             'character_ids': {},
             'account_ids': {}

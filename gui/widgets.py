@@ -7,6 +7,46 @@ from tkinter import ttk
 from .helpers import sort_tree
 
 
+def create_menu_bar(root: tk.Tk) -> dict:
+    """Create menu bar and return references to important menu items"""
+    menubar = tk.Menu(root)
+    root.config(menu=menubar)
+    
+    # File menu
+    file_menu = tk.Menu(menubar, tearoff=0)
+    menubar.add_cascade(label="File", menu=file_menu)
+    file_menu.add_command(label="Exit")
+    
+    # Settings menu
+    settings_menu = tk.Menu(menubar, tearoff=0)
+    menubar.add_cascade(label="Settings", menu=settings_menu)
+    settings_menu.add_command(label="Manage Paths...")
+    settings_menu.add_separator()
+    
+    # Default Sorting submenu
+    sort_menu = tk.Menu(settings_menu, tearoff=0)
+    settings_menu.add_cascade(label="Default Sorting", menu=sort_menu)
+    
+    # Sorting options
+    sort_var = tk.StringVar(value="name_asc")
+    sort_menu.add_radiobutton(label="Name (A-Z)", value="name_asc", variable=sort_var)
+    sort_menu.add_radiobutton(label="Name (Z-A)", value="name_desc", variable=sort_var)
+    sort_menu.add_separator()
+    sort_menu.add_radiobutton(label="ID (Ascending)", value="id_asc", variable=sort_var)
+    sort_menu.add_radiobutton(label="ID (Descending)", value="id_desc", variable=sort_var)
+    sort_menu.add_separator()
+    sort_menu.add_radiobutton(label="Date (Oldest First)", value="date_asc", variable=sort_var)
+    sort_menu.add_radiobutton(label="Date (Newest First)", value="date_desc", variable=sort_var)
+    
+    return {
+        'menubar': menubar,
+        'file_menu': file_menu,
+        'settings_menu': settings_menu,
+        'sort_menu': sort_menu,
+        'sort_var': sort_var
+    }
+
+
 def create_main_layout(root: tk.Tk) -> dict:
     """Create main GUI layout and return references to important widgets"""
     # Configure grid weights for responsive layout

@@ -11,8 +11,8 @@ from esi import ESICache, ESIClient
 from utils import EVEPathResolver, BackupManager
 from utils.core import SettingsManager
 from utils.models import SettingFile
-from utils import DataFileError, PlatformNotSupportedError
-from .widgets import create_main_layout
+from utils import DataFileError, PlatformNotSupportedError, ValidationError
+from .widgets import create_main_layout, create_menu_bar
 from .handlers import EventHandlers
 from .helpers import center_window, sort_tree
 
@@ -154,6 +154,22 @@ class PyEveSettingsGUI:
     
     def _init_gui(self) -> None:
         """Initialize GUI widgets and layout."""
+        # Create menu bar first
+        menu_widgets = create_menu_bar(self.root)
+        self.sort_var = menu_widgets['sort_var']
+        
+        # Load saved sorting preference
+        saved_sort = self.data_file.get_default_sorting()
+        self.sort_var.set(saved_sort)
+        
+        # Connect menu handlers
+        menu_widgets['file_menu'].entryconfigure("Exit", command=self._on_exit)
+        menu_widgets['settings_menu'].entryconfigure("Manage Paths...", command=self._on_manage_paths)
+        
+        # Connect sort var trace to save preference
+        self.sort_var.trace_add('write', self._on_sort_changed)
+        
+        # Create main layout
         widgets = create_main_layout(self.root)
         
         # Store widget references
@@ -361,6 +377,55 @@ class PyEveSettingsGUI:
         self.root.after(100, check_backup_result)
         print("[DEBUG GUI] Backup thread started, periodic check scheduled", flush=True)
     
+    def _on_exit(self) -> None:
+        """Handle Exit menu command."""
+        self.root.quit()
+    
+    def _on_manage_paths(self) -> None:
+        """Handle Manage Paths menu command."""
+        messagebox.showinfo(
+            "Manage Paths",
+            "This feature will allow you to configure custom EVE installation paths.\n\n"
+            "Coming soon!"
+        )
+    
+    def _on_sort_changed(self, *args) -> None:
+        """Handle default sorting preference change."""
+        sort_pref = self.sort_var.get()
+        try:
+            self.data_file.set_default_sorting(sort_pref)
+            self.data_file.save()
+            
+            # Apply sorting to current view
+            self._apply_default_sorting()
+        except ValidationError as e:
+            messagebox.showerror("Invalid Sort Option", str(e))
+    
+    def _apply_default_sorting(self) -> None:
+        """Apply default sorting to treeviews based on saved preference."""
+        sort_pref = self.sort_var.get()
+        
+        # Parse the sorting preference
+        if sort_pref.startswith('name_'):
+            column = 'name'
+            reverse = sort_pref.endswith('_desc')
+        elif sort_pref.startswith('id_'):
+            column = 'id'
+            reverse = sort_pref.endswith('_desc')
+        elif sort_pref.startswith('date_'):
+            column = 'date'
+            reverse = sort_pref.endswith('_desc')
+        else:
+            column = 'name'
+            reverse = False
+        
+        # Apply to characters tree
+        sort_tree(self.chars_tree, column, reverse)
+        
+        # For accounts tree, only id and date are available
+        if column in ['id', 'date']:
+            sort_tree(self.accounts_tree, column, reverse)
+    
     def start_loading_data(self) -> None:
         """Start loading data in a background thread."""
         thread = threading.Thread(target=self.load_data_thread, daemon=True)
@@ -462,6 +527,9 @@ class PyEveSettingsGUI:
         self.profiles_listbox.selection_set(0)
         self.selected_folder = self.settings_folders[0]
         self.handlers.update_character_lists()
+        
+        # Apply default sorting after data is loaded
+        self._apply_default_sorting()
     
     def run(self) -> None:
         """Start the GUI application."""
