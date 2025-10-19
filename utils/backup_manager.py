@@ -251,3 +251,295 @@ class BackupManager:
             'oldest': oldest,
             'newest': newest
         }
+    
+    def parse_backup_filename(self, backup_path: Path) -> Optional[dict]:
+        """Parse backup filename to extract metadata.
+        
+        Expected format: {profile_name}_{timestamp}.zip
+        Example: settings_Default_20231019_141036.zip
+        
+        Args:
+            backup_path: Path to the backup file.
+            
+        Returns:
+            Dictionary with metadata (profile_name, timestamp, datetime_obj) or None if invalid.
+        """
+        try:
+            filename = backup_path.stem  # Remove .zip extension
+            parts = filename.rsplit('_', 2)  # Split from right: name, date, time
+            
+            if len(parts) >= 3:
+                profile_name = '_'.join(parts[:-2])  # Everything before last 2 parts
+                date_str = parts[-2]  # YYYYMMDD
+                time_str = parts[-1]  # HHMMSS
+                timestamp_str = f"{date_str}_{time_str}"
+                
+                # Parse datetime
+                dt = datetime.strptime(timestamp_str, "%Y%m%d_%H%M%S")
+                
+                return {
+                    'profile_name': profile_name,
+                    'timestamp': timestamp_str,
+                    'datetime': dt,
+                    'filename': backup_path.name
+                }
+            return None
+        except (ValueError, IndexError):
+            return None
+    
+    def get_backup_metadata(self, backup_path: Path) -> dict:
+        """Get comprehensive metadata for a backup file.
+        
+        Args:
+            backup_path: Path to the backup file.
+            
+        Returns:
+            Dictionary with metadata: profile, datetime, size, file_count, is_valid.
+        """
+        metadata = {
+            'path': backup_path,
+            'profile_name': 'Unknown',
+            'datetime': None,
+            'timestamp': None,
+            'size_bytes': 0,
+            'size_mb': 0.0,
+            'file_count': 0,
+            'is_valid': False,
+            'server': 'Unknown'
+        }
+        
+        # Parse filename
+        parsed = self.parse_backup_filename(backup_path)
+        if parsed:
+            metadata['profile_name'] = parsed['profile_name']
+            metadata['datetime'] = parsed['datetime']
+            metadata['timestamp'] = parsed['timestamp']
+        
+        # Get file stats
+        if backup_path.exists():
+            try:
+                stat = backup_path.stat()
+                metadata['size_bytes'] = stat.st_size
+                metadata['size_mb'] = stat.st_size / (1024 * 1024)
+                
+                # Try to get file count from zip
+                try:
+                    with zipfile.ZipFile(backup_path, 'r') as zipf:
+                        metadata['file_count'] = len(zipf.namelist())
+                        metadata['is_valid'] = True
+                except zipfile.BadZipFile:
+                    metadata['is_valid'] = False
+            except Exception:
+                pass
+        
+        # Try to extract server from parent path
+        try:
+            # Look for server pattern in path (e.g., c_ccp_eve_tq_tranquility)
+            path_parts = backup_path.parts
+            for part in path_parts:
+                if 'tranquility' in part.lower():
+                    metadata['server'] = 'Tranquility'
+                    break
+                elif 'singularity' in part.lower() or 'sisi' in part.lower():
+                    metadata['server'] = 'Singularity'
+                    break
+                elif 'thunderdome' in part.lower():
+                    metadata['server'] = 'Thunderdome'
+                    break
+        except Exception:
+            pass
+        
+        return metadata
+    
+    def group_backups_by_profile(self, backups: list) -> dict:
+        """Group backups by profile name.
+        
+        Args:
+            backups: List of backup paths.
+            
+        Returns:
+            Dictionary mapping profile names to lists of backup metadata.
+        """
+        grouped = {}
+        
+        for backup_path in backups:
+            if isinstance(backup_path, tuple):
+                backup_path = backup_path[0]  # Extract path from tuple
+            
+            metadata = self.get_backup_metadata(backup_path)
+            profile_name = metadata['profile_name']
+            
+            if profile_name not in grouped:
+                grouped[profile_name] = []
+            grouped[profile_name].append(metadata)
+        
+        # Sort each group by datetime (newest first)
+        for profile_name in grouped:
+            grouped[profile_name].sort(
+                key=lambda x: x['datetime'] if x['datetime'] else datetime.min,
+                reverse=True
+            )
+        
+        return grouped
+    
+    def filter_backups(self, backups: list, profile: Optional[str] = None, server: Optional[str] = None) -> list:
+        """Filter backups by profile name and/or server.
+        
+        Args:
+            backups: List of backup paths or tuples.
+            profile: Optional profile name to filter by.
+            server: Optional server name to filter by.
+            
+        Returns:
+            Filtered list of backups.
+        """
+        filtered = []
+        
+        for backup in backups:
+            backup_path = backup[0] if isinstance(backup, tuple) else backup
+            metadata = self.get_backup_metadata(backup_path)
+            
+            # Apply filters
+            if profile and metadata['profile_name'] != profile:
+                continue
+            if server and metadata['server'] != server:
+                continue
+            
+            filtered.append(backup)
+        
+        return filtered
+    
+    def validate_backup_integrity(self, backup_path: Path) -> tuple[bool, str]:
+        """Validate that a backup file is a valid, non-corrupted zip.
+        
+        Args:
+            backup_path: Path to the backup file.
+            
+        Returns:
+            Tuple of (is_valid, message).
+        """
+        if not backup_path.exists():
+            return False, "Backup file does not exist"
+        
+        if not backup_path.is_file():
+            return False, "Path is not a file"
+        
+        try:
+            with zipfile.ZipFile(backup_path, 'r') as zipf:
+                # Test the zip file
+                result = zipf.testzip()
+                if result is not None:
+                    return False, f"Corrupted file in archive: {result}"
+                
+                # Check if there are any files
+                if len(zipf.namelist()) == 0:
+                    return False, "Backup is empty"
+                
+                return True, "Backup is valid"
+        except zipfile.BadZipFile:
+            return False, "Invalid or corrupted zip file"
+        except Exception as e:
+            return False, f"Error validating backup: {e}"
+    
+    def get_profile_name_from_backup(self, backup_path: Path) -> Optional[str]:
+        """Extract profile name from backup without extracting the archive.
+        
+        Args:
+            backup_path: Path to the backup file.
+            
+        Returns:
+            Profile name or None if cannot be determined.
+        """
+        parsed = self.parse_backup_filename(backup_path)
+        if parsed:
+            return parsed['profile_name']
+        return None
+    
+    @staticmethod
+    def discover_all_backup_directories(search_paths: list[Path]) -> list[dict]:
+        """Discover all backup directories across multiple EVE installations.
+        
+        Args:
+            search_paths: List of base EVE installation paths to search.
+            
+        Returns:
+            List of dictionaries with keys: backup_dir, installation_path, server_name.
+        """
+        backup_dirs = []
+        
+        for base_path in search_paths:
+            if not base_path.exists():
+                continue
+            
+            try:
+                # Look for backup directories
+                for item in base_path.rglob(BackupManager.BACKUP_DIR_NAME):
+                    if item.is_dir():
+                        # Extract server info from path
+                        server_name = 'Unknown'
+                        installation_path = base_path
+                        
+                        # Try to find server folder in path
+                        for part in item.parts:
+                            if 'tranquility' in part.lower():
+                                server_name = 'Tranquility'
+                                break
+                            elif 'singularity' in part.lower() or 'sisi' in part.lower():
+                                server_name = 'Singularity'
+                                break
+                            elif 'thunderdome' in part.lower():
+                                server_name = 'Thunderdome'
+                                break
+                        
+                        backup_dirs.append({
+                            'backup_dir': item,
+                            'installation_path': installation_path,
+                            'server_name': server_name,
+                            'parent_dir': item.parent  # The server/installation directory
+                        })
+            except PermissionError:
+                continue
+        
+        return backup_dirs
+    
+    @staticmethod
+    def list_all_backups_from_directories(backup_directories: list[dict]) -> list[dict]:
+        """List all backups from multiple backup directories.
+        
+        Args:
+            backup_directories: List of backup directory info dicts from discover_all_backup_directories.
+            
+        Returns:
+            List of dictionaries with backup metadata including installation and server info.
+        """
+        all_backups = []
+        
+        for dir_info in backup_directories:
+            backup_dir = dir_info['backup_dir']
+            
+            if not backup_dir.exists():
+                continue
+            
+            try:
+                for backup_file in backup_dir.glob("*.zip"):
+                    if backup_file.is_file():
+                        # Create temporary BackupManager to use metadata methods
+                        temp_manager = BackupManager(dir_info['parent_dir'])
+                        metadata = temp_manager.get_backup_metadata(backup_file)
+                        
+                        # Add installation and server info
+                        metadata['installation_path'] = dir_info['installation_path']
+                        metadata['server'] = dir_info['server_name']
+                        metadata['backup_dir'] = backup_dir
+                        
+                        all_backups.append(metadata)
+            except PermissionError:
+                continue
+        
+        # Sort by datetime (newest first)
+        all_backups.sort(
+            key=lambda x: x['datetime'] if x['datetime'] else datetime.min,
+            reverse=True
+        )
+        
+        return all_backups

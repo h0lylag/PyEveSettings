@@ -16,6 +16,8 @@ def create_menu_bar(root: tk.Tk) -> dict:
     # File menu
     file_menu = tk.Menu(menubar, tearoff=0)
     menubar.add_cascade(label="File", menu=file_menu)
+    file_menu.add_command(label="Backup Manager...")
+    file_menu.add_separator()
     file_menu.add_command(label="Exit")
     
     # Settings menu

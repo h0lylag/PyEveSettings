@@ -16,6 +16,8 @@ from .widgets import create_main_layout, create_menu_bar
 from .handlers import EventHandlers
 from .helpers import center_window, sort_tree
 from .dialogs import show_custom_paths_dialog
+# Lazy import to avoid initialization issues
+# from .backup_window import show_backup_manager
 
 
 class PyEveSettingsGUI:
@@ -171,6 +173,7 @@ class PyEveSettingsGUI:
         self.sort_var.set(saved_sort)
         
         # Connect menu handlers
+        menu_widgets['file_menu'].entryconfigure("Backup Manager...", command=self._on_backup_manager)
         menu_widgets['file_menu'].entryconfigure("Exit", command=self._on_exit)
         menu_widgets['settings_menu'].entryconfigure("Manage Paths...", command=self._on_manage_paths)
         
@@ -437,6 +440,12 @@ class PyEveSettingsGUI:
     def _on_exit(self) -> None:
         """Handle Exit menu command."""
         self.root.quit()
+    
+    def _on_backup_manager(self) -> None:
+        """Handle Backup Manager menu command."""
+        # Lazy import to avoid initialization issues
+        from .backup_window import show_backup_manager
+        show_backup_manager(self.root, self.path_resolver, self.current_server)
     
     def _on_manage_paths(self) -> None:
         """Handle Manage Paths menu command."""
