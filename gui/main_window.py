@@ -8,7 +8,7 @@ import threading
 from typing import Optional, List
 from pathlib import Path
 from utils.core import SettingsManager
-from utils.models import SettingFile
+from utils.models import SettingFile, get_window_settings, set_window_settings
 from .widgets import create_main_layout
 from .handlers import EventHandlers
 from .helpers import center_window, sort_tree
@@ -20,7 +20,23 @@ class PyEveSettingsGUI:
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("PyEveSettings")
-        self.root.geometry("1200x600")
+        
+        # Load saved window settings from cache
+        SettingFile.load_cache()  # Ensure cache is loaded
+        settings = get_window_settings()
+        
+        # Apply window size and position
+        width = settings['width']
+        height = settings['height']
+        x_pos = settings['x_pos']
+        y_pos = settings['y_pos']
+        
+        if x_pos is not None and y_pos is not None:
+            # Use saved position
+            self.root.geometry(f"{width}x{height}+{x_pos}+{y_pos}")
+        else:
+            # No saved position, just set size (will be centered later)
+            self.root.geometry(f"{width}x{height}")
         
         # Initialize settings manager
         self.manager = SettingsManager()
@@ -54,11 +70,43 @@ class PyEveSettingsGUI:
         widgets['account_overwrite_all_btn'].config(command=self.handlers.account_overwrite_all)
         widgets['account_overwrite_select_btn'].config(command=self.handlers.account_overwrite_select)
         
-        # Center window
-        center_window(self.root)
+        # Bind window resize/move event to save settings
+        self.root.bind('<Configure>', self.on_window_configure)
+        self.resize_timer = None  # Timer to debounce resize/move events
+        
+        # Center window only if no saved position
+        if x_pos is None or y_pos is None:
+            center_window(self.root)
         
         # Start loading data in background
         self.root.after(100, self.start_loading_data)
+    
+    def on_window_configure(self, event):
+        """
+        Handle window resize and move events and save the new settings
+        Uses a timer to debounce rapid configure events
+        """
+        # Only handle configure events from the root window, not child widgets
+        if event.widget != self.root:
+            return
+        
+        # Cancel previous timer if it exists
+        if self.resize_timer is not None:
+            self.root.after_cancel(self.resize_timer)
+        
+        # Set a new timer to save the size after 500ms of no resizing
+        self.resize_timer = self.root.after(500, self.save_window_settings)
+    
+    def save_window_settings(self):
+        """Save the current window size and position to cache"""
+        width = self.root.winfo_width()
+        height = self.root.winfo_height()
+        x_pos = self.root.winfo_x()
+        y_pos = self.root.winfo_y()
+        
+        # Save window settings (size and position)
+        set_window_settings(width, height, x_pos, y_pos)
+        self.resize_timer = None
     
     def start_loading_data(self):
         """Start loading data in a background thread"""
