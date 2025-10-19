@@ -4,9 +4,55 @@ Core business logic for EVE settings management
 
 import os
 import shutil
+import platform
 from pathlib import Path
-from typing import List, Dict
+from typing import List, Dict, Optional
 from .models import SettingFile
+
+
+def get_operating_system() -> str:
+    """
+    Determine the current operating system
+    
+    Returns:
+        'windows' or 'linux'
+    """
+    system = platform.system().lower()
+    if system == 'windows':
+        return 'windows'
+    elif system == 'linux':
+        return 'linux'
+    else:
+        # Default to linux for other Unix-like systems
+        return 'linux'
+
+
+def get_eve_base_path() -> Optional[Path]:
+    """
+    Get the EVE base path based on the operating system
+    
+    Returns:
+        Path to EVE base directory or None if not found
+    """
+    os_type = get_operating_system()
+    
+    if os_type == 'windows':
+        # Windows default path
+        username = os.environ.get('USERNAME') or os.environ.get('USER')
+        if username:
+            eve_base = Path(f"C:/Users/{username}/AppData/Local/CCP/EVE/c_ccp_eve_tq_tranquility")
+            if eve_base.exists():
+                return eve_base
+    
+    elif os_type == 'linux':
+        # Linux Steam path
+        username = os.environ.get('USER')
+        if username:
+            eve_base = Path(f"/home/{username}/.steam/steam/steamapps/compatdata/8500/pfx/drive_c/users/steamuser/AppData/Local/CCP/EVE/c_ccp_eve_tq_tranquility")
+            if eve_base.exists():
+                return eve_base
+    
+    return None
 
 
 class SettingsManager:
@@ -23,7 +69,7 @@ class SettingsManager:
         Find EVE settings directories
         Checks:
         1. Current directory (if it contains profile files)
-        2. Default EVE location with subdirectories (settings_Default, settings_Mining, etc.)
+        2. Default EVE location (OS-specific) with subdirectories (settings_Default, settings_Mining, etc.)
         """
         settings_dirs = []
         
@@ -33,18 +79,15 @@ class SettingsManager:
             settings_dirs.append(cwd)
             return settings_dirs  # If current dir has files, use only that
         
-        # Check default EVE location
-        username = os.environ.get('USERNAME') or os.environ.get('USER')
-        if username:
-            # Windows default path
-            eve_base = Path(f"C:/Users/{username}/AppData/Local/CCP/EVE/c_ccp_eve_tq_tranquility")
-            
-            if eve_base.exists():
-                # Look for settings_* subdirectories
-                for subdir in eve_base.iterdir():
-                    if subdir.is_dir() and subdir.name.startswith('settings_'):
-                        if self.has_settings_files(subdir):
-                            settings_dirs.append(subdir)
+        # Check default EVE location using OS-specific path
+        eve_base = get_eve_base_path()
+        
+        if eve_base and eve_base.exists():
+            # Look for settings_* subdirectories
+            for subdir in eve_base.iterdir():
+                if subdir.is_dir() and subdir.name.startswith('settings_'):
+                    if self.has_settings_files(subdir):
+                        settings_dirs.append(subdir)
         
         return settings_dirs
     
