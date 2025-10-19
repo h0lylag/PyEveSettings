@@ -5,6 +5,7 @@ Widget creation and layout for py-eve-settings
 import tkinter as tk
 from tkinter import ttk
 from .helpers import sort_tree
+import config
 
 
 def create_menu_bar(root: tk.Tk) -> dict:
@@ -54,11 +55,11 @@ def create_main_layout(root: tk.Tk) -> dict:
     root.rowconfigure(0, weight=1)
     
     # Main container
-    main_frame = ttk.Frame(root, padding="10")
+    main_frame = ttk.Frame(root, padding=str(config.MAIN_PADDING))
     main_frame.grid(row=0, column=0, sticky="nsew")
-    main_frame.columnconfigure(0, weight=1, minsize=200)  # Profiles
-    main_frame.columnconfigure(1, weight=2, minsize=400)  # Characters
-    main_frame.columnconfigure(2, weight=2, minsize=400)  # Accounts
+    main_frame.columnconfigure(0, weight=config.PROFILES_PANEL_WEIGHT, minsize=config.PROFILES_MIN_WIDTH)
+    main_frame.columnconfigure(1, weight=config.CHARACTERS_PANEL_WEIGHT, minsize=config.CHARACTERS_MIN_WIDTH)
+    main_frame.columnconfigure(2, weight=config.ACCOUNTS_PANEL_WEIGHT, minsize=config.ACCOUNTS_MIN_WIDTH)
     main_frame.rowconfigure(3, weight=1)  # Adjusted for server selector
     
     # Server selector at the very top
@@ -100,9 +101,9 @@ def create_main_layout(root: tk.Tk) -> dict:
     accounts_container = ttk.Frame(paned_window)
     
     # Add containers to paned window
-    paned_window.add(profiles_container, weight=1)
-    paned_window.add(chars_container, weight=2)
-    paned_window.add(accounts_container, weight=2)
+    paned_window.add(profiles_container, weight=config.PROFILES_PANEL_WEIGHT)
+    paned_window.add(chars_container, weight=config.CHARACTERS_PANEL_WEIGHT)
+    paned_window.add(accounts_container, weight=config.ACCOUNTS_PANEL_WEIGHT)
     
     # Create panels inside their containers
     profiles_widgets = create_profiles_panel(profiles_container)

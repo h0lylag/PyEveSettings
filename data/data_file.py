@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Dict, Set, Optional, List
 from datetime import datetime, timezone
 from utils import DataFileError, ValidationError
+import config
 
 
 class DataFile:
@@ -56,7 +57,7 @@ class DataFile:
             file_path: Path to the JSON data file. If None, uses default location.
         """
         if file_path is None:
-            file_path = Path(__file__).parent.parent / "pyevesettings_data.json"
+            file_path = Path(__file__).parent.parent / config.DATA_FILE_NAME
         self.file_path = Path(file_path)
         self._data: Dict = {}
         
@@ -320,14 +321,14 @@ class DataFile:
         
         Args:
             char_id: Character ID.
-            note: Note text (max 100 characters).
+            note: Note text (max length defined in config).
             
         Raises:
             ValidationError: If note exceeds maximum length.
         """
-        if len(note) > 100:
+        if len(note) > config.MAX_NOTE_LENGTH:
             raise ValidationError(
-                f"Character note exceeds maximum length of 100 characters (got {len(note)})"
+                f"Character note exceeds maximum length of {config.MAX_NOTE_LENGTH} characters (got {len(note)})"
             )
         
         char_id_str = str(char_id)
@@ -362,14 +363,14 @@ class DataFile:
         
         Args:
             account_id: Account ID.
-            note: Note text (max 100 characters).
+            note: Note text (max length defined in config).
             
         Raises:
             ValidationError: If note exceeds maximum length.
         """
-        if len(note) > 100:
+        if len(note) > config.MAX_NOTE_LENGTH:
             raise ValidationError(
-                f"Account note exceeds maximum length of 100 characters (got {len(note)})"
+                f"Account note exceeds maximum length of {config.MAX_NOTE_LENGTH} characters (got {len(note)})"
             )
         
         account_id_str = str(account_id)
@@ -437,7 +438,12 @@ class DataFile:
         Returns:
             Dictionary with width, height, x_pos, y_pos keys.
         """
-        default = {"width": 1800, "height": 1000, "x_pos": 0, "y_pos": 0}
+        default = {
+            "width": config.DEFAULT_WINDOW_WIDTH,
+            "height": config.DEFAULT_WINDOW_HEIGHT,
+            "x_pos": config.DEFAULT_WINDOW_X,
+            "y_pos": config.DEFAULT_WINDOW_Y
+        }
         return self._data.get('app_settings', default)
     
     def set_window_settings(self, width: int, height: int, x_pos: int, y_pos: int) -> None:
@@ -463,10 +469,10 @@ class DataFile:
         
         Returns:
             Sorting preference string (e.g., 'name_asc', 'id_desc', 'date_asc').
-            Defaults to 'name_asc' if not set.
+            Defaults to configured default if not set.
         """
         app_settings = self._data.get('app_settings', {})
-        return app_settings.get('default_sorting', 'name_asc')
+        return app_settings.get('default_sorting', config.DEFAULT_SORTING)
     
     def set_default_sorting(self, sort_preference: str) -> None:
         """Set default sorting preference.
@@ -474,10 +480,9 @@ class DataFile:
         Args:
             sort_preference: Sorting preference string (e.g., 'name_asc', 'id_desc', 'date_asc').
         """
-        valid_options = ['name_asc', 'name_desc', 'id_asc', 'id_desc', 'date_asc', 'date_desc']
-        if sort_preference not in valid_options:
+        if sort_preference not in config.VALID_SORT_OPTIONS:
             raise ValidationError(
-                f"Invalid sort preference '{sort_preference}'. Must be one of: {', '.join(valid_options)}"
+                f"Invalid sort preference '{sort_preference}'. Must be one of: {', '.join(config.VALID_SORT_OPTIONS)}"
             )
         
         self._data['app_settings']['default_sorting'] = sort_preference
@@ -520,11 +525,11 @@ class DataFile:
         """
         return {
             'app_settings': {
-                'width': 800,           # Default window width
-                'height': 600,          # Default window height
-                'x_pos': 0,             # Default X position
-                'y_pos': 0,             # Default Y position
-                'default_sorting': 'name_asc',  # Sort by name A-Z by default
+                'width': config.DEFAULT_WINDOW_WIDTH,
+                'height': config.DEFAULT_WINDOW_HEIGHT,
+                'x_pos': config.DEFAULT_WINDOW_X,
+                'y_pos': config.DEFAULT_WINDOW_Y,
+                'default_sorting': config.DEFAULT_SORTING,
                 'custom_paths': []      # No custom EVE paths by default
             },
             'character_ids': {},        # Empty on first run

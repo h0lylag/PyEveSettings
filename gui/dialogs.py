@@ -8,6 +8,7 @@ from pathlib import Path
 from utils.models import SettingFile
 from data import NotesManager
 from .helpers import sort_tree, center_dialog
+import config
 
 
 def _create_selection_tree(
@@ -150,8 +151,8 @@ def show_character_selection_dialog(
     ttk.Button(btn_frame, text="Copy to Selected", command=do_copy).pack(side=tk.LEFT, padx=5)
     ttk.Button(btn_frame, text="Cancel", command=dialog.destroy).pack(side=tk.LEFT, padx=5)
     
-    # Center dialog above main window - larger size
-    center_dialog(dialog, parent, 900, 650)
+    # Center dialog above main window
+    center_dialog(dialog, parent, config.CHAR_SELECTION_DIALOG_WIDTH, config.CHAR_SELECTION_DIALOG_HEIGHT)
 
 
 def show_account_selection_dialog(
@@ -258,8 +259,8 @@ def show_account_selection_dialog(
     ttk.Button(btn_frame, text="Copy to Selected", command=do_copy).pack(side=tk.LEFT, padx=5)
     ttk.Button(btn_frame, text="Cancel", command=dialog.destroy).pack(side=tk.LEFT, padx=5)
     
-    # Center dialog above main window - larger size
-    center_dialog(dialog, parent, 750, 550)
+    # Center dialog above main window
+    center_dialog(dialog, parent, config.ACCOUNT_SELECTION_DIALOG_WIDTH, config.ACCOUNT_SELECTION_DIALOG_HEIGHT)
 
 
 def show_custom_paths_dialog(parent: tk.Tk, data_file, on_paths_changed: Optional[Callable] = None) -> None:
@@ -386,4 +387,4 @@ def show_custom_paths_dialog(parent: tk.Tk, data_file, on_paths_changed: Optiona
     ttk.Button(bottom_frame, text="Cancel", command=dialog.destroy, width=12).pack(side=tk.LEFT, padx=5)
     
     # Center dialog above main window
-    center_dialog(dialog, parent, 700, 400)
+    center_dialog(dialog, parent, config.CUSTOM_PATHS_DIALOG_WIDTH, config.CUSTOM_PATHS_DIALOG_HEIGHT)
