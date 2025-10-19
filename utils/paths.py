@@ -10,14 +10,16 @@ from .exceptions import SettingsNotFoundError, PlatformNotSupportedError
 class EVEPathResolver:
     """Resolves paths to EVE Online installation and settings folders."""
     
-    def __init__(self, server: Optional[str] = None):
+    def __init__(self, server: Optional[str] = None, custom_paths: Optional[List[str]] = None):
         """Initialize the path resolver.
         
         Args:
             server: Server name (e.g., 'tranquility', 'singularity'). If None, defaults to tranquility.
+            custom_paths: Optional list of custom EVE installation paths to check.
         """
         self.platform = detect_platform()
         self.server = server or 'tranquility'
+        self.custom_paths = [Path(p) for p in (custom_paths or [])]
     
     def discover_servers(self) -> Dict[str, str]:
         """Discover all available EVE servers.
@@ -27,11 +29,26 @@ class EVEPathResolver:
             Example: {'Tranquility': 'c_ccp_eve_tq_tranquility', 'Singularity': 'c_ccp_eve_sisi_singularity'}
         """
         servers = {}
+        
+        # Check default base directory
         base_dir = self._get_eve_base_directory()
+        if base_dir and base_dir.exists():
+            self._scan_for_servers(base_dir, servers)
         
-        if not base_dir or not base_dir.exists():
-            return servers
+        # Check custom paths
+        for custom_path in self.custom_paths:
+            if custom_path.exists():
+                self._scan_for_servers(custom_path, servers)
         
+        return servers
+    
+    def _scan_for_servers(self, base_dir: Path, servers: Dict[str, str]) -> None:
+        """Scan a directory for EVE server folders.
+        
+        Args:
+            base_dir: Directory to scan.
+            servers: Dictionary to add found servers to.
+        """
         try:
             for item in base_dir.iterdir():
                 if item.is_dir() and item.name.startswith('c_ccp_eve_'):
@@ -42,11 +59,10 @@ class EVEPathResolver:
                         server_name = parts[-1]
                         # Capitalize for display
                         display_name = server_name.capitalize()
-                        servers[display_name] = item.name
+                        # Store full path as value instead of just folder name
+                        servers[display_name] = str(item)
         except PermissionError:
             print(f"Warning: Permission denied accessing {base_dir}")
-        
-        return servers
     
     def _get_eve_base_directory(self) -> Optional[Path]:
         """Get the base EVE directory containing server folders.
@@ -118,6 +134,16 @@ class EVEPathResolver:
         Raises:
             PlatformNotSupportedError: If the current platform is not supported.
         """
+        # First check if server folder is from custom paths (will be full path)
+        servers = self.discover_servers()
+        server_key = (server or self.server).capitalize()
+        if server_key in servers:
+            server_path_str = servers[server_key]
+            # If it's a full path (from custom paths), return it
+            if '/' in server_path_str or '\\' in server_path_str:
+                return Path(server_path_str)
+        
+        # Otherwise use platform-specific logic
         if self.platform == Platform.WINDOWS:
             return self._get_windows_path(server)
         elif self.platform == Platform.LINUX:

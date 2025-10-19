@@ -1,9 +1,10 @@
 """Dialog windows for py-eve-settings."""
 
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, filedialog
 from typing import List, Optional, Callable, Tuple
 from datetime import datetime
+from pathlib import Path
 from utils.models import SettingFile
 from data import NotesManager
 from .helpers import sort_tree, center_dialog
@@ -265,3 +266,130 @@ def show_account_selection_dialog(
     
     # Center dialog above main window
     center_dialog(dialog, parent, 500, 450)
+
+
+def show_custom_paths_dialog(parent: tk.Tk, data_file, on_paths_changed: Optional[Callable] = None) -> None:
+    """Show dialog to manage custom EVE installation paths.
+    
+    Args:
+        parent: Parent window.
+        data_file: DataFile instance for loading/saving custom paths.
+        on_paths_changed: Optional callback to call when paths are modified.
+    """
+    # Create dialog
+    dialog = tk.Toplevel(parent)
+    dialog.title("Manage Custom Paths")
+    dialog.transient(parent)
+    dialog.grab_set()
+    
+    # Main container with padding
+    main_container = ttk.Frame(dialog, padding="15")
+    main_container.pack(fill=tk.BOTH, expand=True)
+    
+    # Header
+    tk.Label(main_container, text="Custom EVE Installation Paths", 
+            font=("Segoe UI", 11, "bold")).pack(pady=(0, 5))
+    tk.Label(main_container, text="Add directories containing EVE settings folders (e.g., c_ccp_eve_tq_tranquility):", 
+            font=("Segoe UI", 9)).pack(pady=(0, 10))
+    
+    # Listbox frame
+    list_frame = ttk.Frame(main_container)
+    list_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
+    list_frame.rowconfigure(0, weight=1)
+    list_frame.columnconfigure(0, weight=1)
+    
+    # Create listbox with scrollbar
+    paths_listbox = tk.Listbox(list_frame, selectmode=tk.SINGLE, font=("Consolas", 9))
+    paths_listbox.grid(row=0, column=0, sticky="nsew")
+    
+    scrollbar = ttk.Scrollbar(list_frame, orient=tk.VERTICAL, command=paths_listbox.yview)
+    scrollbar.grid(row=0, column=1, sticky="ns")
+    paths_listbox.configure(yscrollcommand=scrollbar.set)
+    
+    # Load existing custom paths
+    custom_paths = data_file.get_custom_paths()
+    for path in custom_paths:
+        paths_listbox.insert(tk.END, path)
+    
+    # Button frame
+    btn_frame = ttk.Frame(main_container)
+    btn_frame.pack(pady=(0, 10))
+    
+    def add_path():
+        """Add a new custom path."""
+        directory = filedialog.askdirectory(
+            parent=dialog,
+            title="Select EVE Installation Directory",
+            mustexist=True
+        )
+        if directory:
+            path_obj = Path(directory)
+            path_str = str(path_obj)
+            
+            # Check if path already exists
+            if path_str in custom_paths:
+                messagebox.showwarning("Duplicate Path", "This path is already in the list.")
+                return
+            
+            # Verify path contains EVE server folders
+            server_folders = [d for d in path_obj.iterdir() 
+                            if d.is_dir() and d.name.startswith('c_ccp_eve_')]
+            
+            if not server_folders:
+                result = messagebox.askyesno(
+                    "No Server Folders Found",
+                    f"No EVE server folders (c_ccp_eve_*) found in:\n{path_str}\n\n"
+                    "Add this path anyway?"
+                )
+                if not result:
+                    return
+            
+            # Add to list
+            paths_listbox.insert(tk.END, path_str)
+            custom_paths.append(path_str)
+    
+    def remove_path():
+        """Remove selected path."""
+        selection = paths_listbox.curselection()
+        if not selection:
+            messagebox.showwarning("No Selection", "Please select a path to remove.")
+            return
+        
+        index = selection[0]
+        path_str = paths_listbox.get(index)
+        
+        # Confirm removal
+        result = messagebox.askyesno(
+            "Confirm Removal",
+            f"Remove this path?\n\n{path_str}"
+        )
+        
+        if result:
+            paths_listbox.delete(index)
+            custom_paths.remove(path_str)
+    
+    def save_and_close():
+        """Save custom paths and close dialog."""
+        try:
+            data_file.set_custom_paths(custom_paths)
+            data_file.save()
+            dialog.destroy()
+            
+            # Notify parent that paths changed
+            if on_paths_changed:
+                on_paths_changed()
+        except Exception as e:
+            messagebox.showerror("Save Error", f"Failed to save custom paths:\n{e}")
+    
+    ttk.Button(btn_frame, text="Add Path...", command=add_path).pack(side=tk.LEFT, padx=5)
+    ttk.Button(btn_frame, text="Remove", command=remove_path).pack(side=tk.LEFT, padx=5)
+    
+    # Bottom button frame
+    bottom_frame = ttk.Frame(main_container)
+    bottom_frame.pack()
+    
+    ttk.Button(bottom_frame, text="Save", command=save_and_close, width=12).pack(side=tk.LEFT, padx=5)
+    ttk.Button(bottom_frame, text="Cancel", command=dialog.destroy, width=12).pack(side=tk.LEFT, padx=5)
+    
+    # Center dialog above main window
+    center_dialog(dialog, parent, 700, 400)

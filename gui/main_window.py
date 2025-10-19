@@ -15,6 +15,7 @@ from utils import DataFileError, PlatformNotSupportedError, ValidationError
 from .widgets import create_main_layout, create_menu_bar
 from .handlers import EventHandlers
 from .helpers import center_window, sort_tree
+from .dialogs import show_custom_paths_dialog
 
 
 class PyEveSettingsGUI:
@@ -119,8 +120,9 @@ class PyEveSettingsGUI:
             invalid_ids = {int(i) for i in self.data_file.get_invalid_ids()}
             self.api_cache.load_cache(char_names, invalid_ids)
             
-            # Initialize path resolver (without server initially)
-            self.path_resolver = EVEPathResolver()
+            # Initialize path resolver with custom paths
+            custom_paths = self.data_file.get_custom_paths()
+            self.path_resolver = EVEPathResolver(custom_paths=custom_paths)
             
             # Discover available servers
             self.available_servers = self.path_resolver.discover_servers()
@@ -383,11 +385,41 @@ class PyEveSettingsGUI:
     
     def _on_manage_paths(self) -> None:
         """Handle Manage Paths menu command."""
-        messagebox.showinfo(
-            "Manage Paths",
-            "This feature will allow you to configure custom EVE installation paths.\n\n"
-            "Coming soon!"
-        )
+        show_custom_paths_dialog(self.root, self.data_file, self._on_custom_paths_changed)
+    
+    def _on_custom_paths_changed(self) -> None:
+        """Handle custom paths being changed - reinitialize path resolver and reload data."""
+        # Reinitialize path resolver with new custom paths
+        custom_paths = self.data_file.get_custom_paths()
+        self.path_resolver = EVEPathResolver(custom_paths=custom_paths)
+        
+        # Rediscover servers
+        self.available_servers = self.path_resolver.discover_servers()
+        
+        # Update server dropdown
+        server_names = sorted(self.available_servers.keys()) if self.available_servers else ['Tranquility']
+        self.server_combo['values'] = server_names
+        
+        # Keep current server if still available, otherwise switch to first available
+        if self.current_server not in self.available_servers:
+            if self.available_servers:
+                self.current_server = server_names[0]
+                self.server_var.set(self.current_server)
+        
+        # Reload data
+        self.status_label.config(text="Reloading after path changes...", foreground="blue")
+        self.progress.grid()
+        self.progress.start(10)
+        
+        # Clear current data
+        self.profiles_listbox.delete(0, tk.END)
+        self.chars_tree.delete(*self.chars_tree.get_children())
+        self.accounts_tree.delete(*self.accounts_tree.get_children())
+        self.path_var.set("")
+        
+        # Reload in background
+        self.loading = True
+        self.root.after(100, self.start_loading_data)
     
     def _on_sort_changed(self, *args) -> None:
         """Handle default sorting preference change."""
@@ -488,15 +520,12 @@ class PyEveSettingsGUI:
         # Check for errors
         if not self.settings_folders:
             self.status_label.config(
-                text="No EVE settings directories found. Use 'Custom...' to select a folder.",
+                text="No EVE settings directories found. Use Settings → Manage Paths to add custom paths.",
                 foreground="orange"
             )
             messagebox.showwarning("No Directories Found", 
                                "Could not find EVE settings directories.\n\n"
-                               "You can use the 'Custom...' option to manually select\n"
-                               "a settings folder containing EVE profile files.")
-            # Add Custom option to allow manual selection
-            self.profiles_listbox.insert(tk.END, "Custom...")
+                               "Use Settings → Manage Paths to add custom EVE installation paths.")
             return
         
         if not self.manager.user_list or not self.manager.char_list:
@@ -507,11 +536,10 @@ class PyEveSettingsGUI:
             messagebox.showwarning("Incomplete Data", 
                                "Some directories are missing user or char files.\n\n"
                                f"Searched in:\n" + "\n".join(str(f) for f in self.settings_folders) +
-                               "\n\nYou can use 'Custom...' to select a different folder.")
-            # Still show the profiles list so user can try Custom
+                               "\n\nUse Settings → Manage Paths to add different paths.")
+            # Still show the profiles list
             for folder in self.settings_folders:
                 self.profiles_listbox.insert(tk.END, folder.name)
-            self.profiles_listbox.insert(tk.END, "Custom...")
             return
         
         # Update status label
@@ -521,7 +549,6 @@ class PyEveSettingsGUI:
         # Populate profiles listbox
         for folder in self.settings_folders:
             self.profiles_listbox.insert(tk.END, folder.name)
-        self.profiles_listbox.insert(tk.END, "Custom...")
         
         # Select first profile by default
         self.profiles_listbox.selection_set(0)

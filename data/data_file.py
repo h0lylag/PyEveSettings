@@ -5,7 +5,7 @@ Handles loading and saving data to/from the JSON data file.
 
 import json
 from pathlib import Path
-from typing import Dict, Set, Optional
+from typing import Dict, Set, Optional, List
 from datetime import datetime, timezone
 from utils import DataFileError, ValidationError
 
@@ -399,6 +399,33 @@ class DataFile:
         
         self._data['window_settings']['default_sorting'] = sort_preference
     
+    def get_custom_paths(self) -> List[str]:
+        """Get custom EVE installation paths.
+        
+        Returns:
+            List of custom path strings.
+        """
+        window_settings = self._data.get('window_settings', {})
+        return window_settings.get('custom_paths', [])
+    
+    def set_custom_paths(self, paths: List[str]) -> None:
+        """Set custom EVE installation paths.
+        
+        Args:
+            paths: List of path strings to custom EVE installations.
+        """
+        # Ensure window_settings exists
+        if 'window_settings' not in self._data:
+            self._data['window_settings'] = {
+                'width': 800,
+                'height': 600,
+                'x_pos': 0,
+                'y_pos': 0,
+                'default_sorting': 'name_asc'
+            }
+        
+        self._data['window_settings']['custom_paths'] = paths
+    
     @staticmethod
     def _get_default_structure() -> Dict:
         """Get the default data structure.
@@ -412,7 +439,8 @@ class DataFile:
                 'height': 600,
                 'x_pos': 0,
                 'y_pos': 0,
-                'default_sorting': 'name_asc'
+                'default_sorting': 'name_asc',
+                'custom_paths': []
             },
             'character_ids': {},
             'account_ids': {}
