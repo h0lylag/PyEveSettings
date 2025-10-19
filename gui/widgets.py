@@ -19,15 +19,25 @@ def create_main_layout(root: tk.Tk) -> dict:
     main_frame.columnconfigure(0, weight=1, minsize=200)  # Profiles
     main_frame.columnconfigure(1, weight=2, minsize=400)  # Characters
     main_frame.columnconfigure(2, weight=2, minsize=400)  # Accounts
-    main_frame.rowconfigure(2, weight=1)
+    main_frame.rowconfigure(3, weight=1)  # Adjusted for server selector
     
-    # Status bar at top
+    # Server selector at the very top
+    server_frame = ttk.Frame(main_frame)
+    server_frame.grid(row=0, column=0, columnspan=3, sticky="ew", pady=(0, 10))
+    server_frame.columnconfigure(1, weight=1)
+    
+    ttk.Label(server_frame, text="Server:", font=("Segoe UI", 10, "bold")).grid(row=0, column=0, padx=(0, 5), sticky=tk.W)
+    server_var = tk.StringVar()
+    server_combo = ttk.Combobox(server_frame, textvariable=server_var, state='readonly', font=("Segoe UI", 10), width=20)
+    server_combo.grid(row=0, column=1, sticky=tk.W)
+    
+    # Status bar
     status_label = ttk.Label(main_frame, text="Loading EVE settings...", foreground="blue")
-    status_label.grid(row=0, column=0, columnspan=3, sticky=tk.W, pady=(0, 5))
+    status_label.grid(row=1, column=0, columnspan=3, sticky=tk.W, pady=(0, 5))
     
     # Path display field
     path_frame = ttk.Frame(main_frame)
-    path_frame.grid(row=1, column=0, columnspan=3, sticky="ew", pady=(0, 10))
+    path_frame.grid(row=2, column=0, columnspan=3, sticky="ew", pady=(0, 10))
     path_frame.columnconfigure(1, weight=1)
     
     ttk.Label(path_frame, text="Profile Path:", font=("Segoe UI", 10, "bold")).grid(row=0, column=0, padx=(0, 5), sticky=tk.W)
@@ -37,7 +47,7 @@ def create_main_layout(root: tk.Tk) -> dict:
     
     # Progress bar
     progress = ttk.Progressbar(main_frame, mode='indeterminate', length=400)
-    progress.grid(row=1, column=0, columnspan=3, pady=(0, 10), sticky="ew")
+    progress.grid(row=2, column=0, columnspan=3, pady=(0, 10), sticky="ew")
     progress.start(10)
     
     # Create profiles panel
@@ -51,6 +61,8 @@ def create_main_layout(root: tk.Tk) -> dict:
     
     # Return all widget references
     return {
+        'server_var': server_var,
+        'server_combo': server_combo,
         'status_label': status_label,
         'path_var': path_var,
         'path_entry': path_entry,
@@ -64,7 +76,7 @@ def create_main_layout(root: tk.Tk) -> dict:
 def create_profiles_panel(parent: ttk.Frame) -> dict:
     """Create profiles panel (left column)"""
     profiles_frame = ttk.LabelFrame(parent, text="Profiles", padding="5")
-    profiles_frame.grid(row=2, column=0, sticky="nsew", padx=(0, 5))
+    profiles_frame.grid(row=3, column=0, sticky="nsew", padx=(0, 5))
     profiles_frame.rowconfigure(0, weight=1)
     profiles_frame.columnconfigure(0, weight=1)
     
@@ -82,7 +94,7 @@ def create_profiles_panel(parent: ttk.Frame) -> dict:
 def create_characters_panel(parent: ttk.Frame) -> dict:
     """Create characters panel (middle column)"""
     chars_frame = ttk.LabelFrame(parent, text="Characters", padding="5")
-    chars_frame.grid(row=2, column=1, sticky="nsew", padx=5)
+    chars_frame.grid(row=3, column=1, sticky="nsew", padx=5)
     chars_frame.rowconfigure(0, weight=1)
     chars_frame.columnconfigure(0, weight=1)
     
@@ -129,8 +141,9 @@ def create_characters_panel(parent: ttk.Frame) -> dict:
 def create_accounts_panel(parent: ttk.Frame) -> dict:
     """Create accounts panel (right column)"""
     accounts_frame = ttk.LabelFrame(parent, text="Accounts", padding="5")
-    accounts_frame.grid(row=2, column=2, sticky="nsew", padx=(5, 0))
+    accounts_frame.grid(row=3, column=2, sticky="nsew", padx=(5, 0))
     accounts_frame.rowconfigure(0, weight=1)
+    accounts_frame.columnconfigure(0, weight=1)
     accounts_frame.columnconfigure(0, weight=1)
     
     # Accounts treeview with sortable columns
