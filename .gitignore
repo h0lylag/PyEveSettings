@@ -46,5 +46,4 @@ chars.json
 # OS
 .DS_Store
 Thumbs.db
-py-eve-settings.json
-PyEveSettings.json
+pyevesettings_data.json
