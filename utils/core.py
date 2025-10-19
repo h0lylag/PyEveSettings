@@ -4,7 +4,7 @@ import shutil
 from pathlib import Path
 from typing import List, Dict, Optional
 
-from platform_utils import EVEPathResolver
+from .paths import EVEPathResolver
 from .models import SettingFile
 
 

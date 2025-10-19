@@ -7,11 +7,11 @@ from typing import Optional, List
 from pathlib import Path
 
 from data import DataFile, WindowSettings, NotesManager
-from api import APICache, ESIClient
-from platform_utils import EVEPathResolver
+from esi import ESICache, ESIClient
+from utils import EVEPathResolver
 from utils.core import SettingsManager
 from utils.models import SettingFile
-from exceptions import DataFileError, PlatformNotSupportedError
+from utils import DataFileError, PlatformNotSupportedError
 from .widgets import create_main_layout
 from .handlers import EventHandlers
 from .helpers import center_window, sort_tree
@@ -84,7 +84,7 @@ class PyEveSettingsGUI:
         """
         try:
             # Initialize API cache
-            self.api_cache = APICache(ESIClient())
+            self.api_cache = ESICache(ESIClient())
             # Convert string keys to int for cache loading
             char_names = {int(k): v for k, v in self.data_file.get_character_names().items()}
             invalid_ids = {int(i) for i in self.data_file.get_invalid_ids()}

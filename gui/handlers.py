@@ -5,7 +5,7 @@ from tkinter import messagebox, filedialog, simpledialog
 from typing import Optional, TYPE_CHECKING
 from pathlib import Path
 from datetime import datetime
-from exceptions import ValidationError, DataFileError
+from utils import ValidationError, DataFileError
 from .dialogs import show_character_selection_dialog, show_account_selection_dialog
 from .helpers import sort_tree
 

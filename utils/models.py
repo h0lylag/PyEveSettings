@@ -27,7 +27,7 @@ class SettingFile:
         
         Args:
             file_path: Path to the settings file.
-            api_cache: Optional APICache instance for character name resolution.
+            api_cache: Optional ESICache instance for character name resolution.
         """
         self.path = file_path
         self.name = file_path.name

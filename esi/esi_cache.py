@@ -5,7 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 from .esi_client import ESIClient
 
 
-class APICache:
+class ESICache:
     """Manages caching of character names from ESI API."""
     
     def __init__(self, esi_client: Optional[ESIClient] = None):

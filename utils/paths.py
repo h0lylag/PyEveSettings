@@ -3,8 +3,8 @@
 import os
 from pathlib import Path
 from typing import List, Optional
-from .detector import Platform, detect_platform
-from exceptions import SettingsNotFoundError, PlatformNotSupportedError
+from .platform_detector import Platform, detect_platform
+from .exceptions import SettingsNotFoundError, PlatformNotSupportedError
 
 
 class EVEPathResolver:

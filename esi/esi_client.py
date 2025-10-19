@@ -4,7 +4,7 @@ import http.client
 import json
 import socket
 from typing import Optional
-from exceptions import ESIError, InvalidCharacterError
+from utils import ESIError, InvalidCharacterError
 
 
 class ESIClient:
