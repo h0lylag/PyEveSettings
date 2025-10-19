@@ -7,7 +7,7 @@ from tkinter import ttk
 
 
 def sort_tree(tree: ttk.Treeview, col: str, reverse: bool):
-    """Sort treeview by column"""
+    """Sort treeview by column and update header with arrow indicator"""
     # Get all items
     items = [(tree.set(child, col), child) for child in tree.get_children('')]
     
@@ -22,6 +22,24 @@ def sort_tree(tree: ttk.Treeview, col: str, reverse: bool):
     # Rearrange items in sorted positions
     for index, (val, child) in enumerate(items):
         tree.move(child, '', index)
+    
+    # Update all column headers to remove arrows
+    column_names = {
+        'id': 'ID',
+        'name': 'Name',
+        'date': 'Last Modified',
+        'note': 'Note'
+    }
+    
+    for column in tree['columns']:
+        if column in column_names:
+            # Remove any existing arrows from the header
+            base_text = column_names[column]
+            tree.heading(column, text=base_text)
+    
+    # Add arrow to the sorted column
+    arrow = ' ▼' if reverse else ' ▲'
+    tree.heading(col, text=column_names.get(col, col) + arrow)
     
     # Update heading to reverse sort next time
     tree.heading(col, command=lambda: sort_tree(tree, col, not reverse))
