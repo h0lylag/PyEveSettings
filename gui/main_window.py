@@ -25,6 +25,9 @@ class PyEveSettingsGUI:
         self.root = tk.Tk()
         self.root.title("PyEveSettings")
         
+        # Configure default fonts for the application
+        self._configure_fonts()
+        
         # Initialize state variables
         self.settings_folders: List[Path] = []
         self.all_char_list: List[SettingFile] = []
@@ -46,6 +49,32 @@ class PyEveSettingsGUI:
         
         # Start loading data in background
         self.root.after(100, self.start_loading_data)
+    
+    def _configure_fonts(self) -> None:
+        """Configure default fonts for the entire application."""
+        import tkinter.font as tkfont
+        
+        # Get the default font and increase its size
+        default_font = tkfont.nametofont("TkDefaultFont")
+        default_font.configure(size=10)
+        
+        # Configure text font (used in Entry, Text, etc.)
+        text_font = tkfont.nametofont("TkTextFont")
+        text_font.configure(size=10)
+        
+        # Configure fixed-width font (used in monospace displays)
+        fixed_font = tkfont.nametofont("TkFixedFont")
+        fixed_font.configure(size=10)
+        
+        # Configure menu font
+        menu_font = tkfont.nametofont("TkMenuFont")
+        menu_font.configure(size=10)
+        
+        # Configure heading font for treeview headers
+        heading_font = tkfont.Font(family="Segoe UI", size=10, weight="normal")
+        style = ttk.Style()
+        style.configure("Treeview.Heading", font=heading_font)
+        style.configure("Treeview", font=("Segoe UI", 10), rowheight=38)
     
     def _init_data_layer(self) -> None:
         """Initialize data persistence layer.

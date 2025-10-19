@@ -99,9 +99,9 @@ def show_character_selection_dialog(
     
     # Header
     tk.Label(main_container, text=f"Source: {char_name}", 
-            font=("Segoe UI", 10, "bold")).pack(pady=(0, 5))
+            font=("Segoe UI", 11, "bold")).pack(pady=(0, 5))
     tk.Label(main_container, text="Select characters to receive settings:", 
-            font=("Segoe UI", 9)).pack(pady=(0, 10))
+            font=("Segoe UI", 10)).pack(pady=(0, 10))
     
     # Treeview frame
     tree_frame = ttk.Frame(main_container)
@@ -199,9 +199,9 @@ def show_account_selection_dialog(
     
     # Header
     tk.Label(main_container, text=f"Source: Account {user_id}", 
-            font=("Segoe UI", 10, "bold")).pack(pady=(0, 5))
+            font=("Segoe UI", 11, "bold")).pack(pady=(0, 5))
     tk.Label(main_container, text="Select accounts to receive settings:", 
-            font=("Segoe UI", 9)).pack(pady=(0, 10))
+            font=("Segoe UI", 10)).pack(pady=(0, 10))
     
     # Treeview frame
     tree_frame = ttk.Frame(main_container)

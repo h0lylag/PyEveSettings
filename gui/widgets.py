@@ -30,9 +30,9 @@ def create_main_layout(root: tk.Tk) -> dict:
     path_frame.grid(row=1, column=0, columnspan=3, sticky="ew", pady=(0, 10))
     path_frame.columnconfigure(1, weight=1)
     
-    ttk.Label(path_frame, text="Profile Path:", font=("Segoe UI", 9, "bold")).grid(row=0, column=0, padx=(0, 5), sticky=tk.W)
+    ttk.Label(path_frame, text="Profile Path:", font=("Segoe UI", 10, "bold")).grid(row=0, column=0, padx=(0, 5), sticky=tk.W)
     path_var = tk.StringVar()
-    path_entry = ttk.Entry(path_frame, textvariable=path_var, state='readonly', font=("Consolas", 9))
+    path_entry = ttk.Entry(path_frame, textvariable=path_var, state='readonly', font=("Consolas", 10))
     path_entry.grid(row=0, column=1, sticky="ew")
     
     # Progress bar
