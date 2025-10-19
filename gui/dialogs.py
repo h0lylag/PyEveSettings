@@ -63,7 +63,7 @@ def show_character_selection_dialog(parent, source_char: SettingFile, all_chars:
     for char in all_chars:
         if char.id != source_char.id:  # Skip source
             mtime = char.path.stat().st_mtime
-            date_str = datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M')
+            date_str = datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M:%S')
             note = get_character_note(char.id)
             
             tree.insert('', 'end', text='☐',
@@ -168,7 +168,7 @@ def show_account_selection_dialog(parent, source_user: SettingFile, all_users: L
     for user in all_users:
         if user.id != user_id:  # Skip source
             mtime = user.path.stat().st_mtime
-            date_str = datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M')
+            date_str = datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M:%S')
             note = get_account_note(user.id)
             
             tree.insert('', 'end', text='☐',

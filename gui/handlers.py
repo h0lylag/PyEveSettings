@@ -104,7 +104,7 @@ class EventHandlers:
                 continue
             
             mtime = char.path.stat().st_mtime
-            date_str = datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M')
+            date_str = datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M:%S')
             note = get_character_note(char.id)
             
             self.app.chars_tree.insert('', 'end', 
@@ -115,7 +115,7 @@ class EventHandlers:
         self.app.accounts_tree.delete(*self.app.accounts_tree.get_children())
         for user in filtered_users:
             mtime = user.path.stat().st_mtime
-            date_str = datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M')
+            date_str = datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M:%S')
             note = get_account_note(user.id)
             
             self.app.accounts_tree.insert('', 'end',
