@@ -4,7 +4,6 @@ Helper functions for GUI operations
 
 import tkinter as tk
 from tkinter import ttk
-import config
 
 
 def sort_tree(tree: ttk.Treeview, col: str, reverse: bool):

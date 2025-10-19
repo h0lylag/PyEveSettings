@@ -27,26 +27,6 @@ DEFAULT_WINDOW_Y = 0  # 0 means centered on first run
 # =============================================================================
 DEFAULT_SORTING = "name_asc"  # Default sorting: Name A-Z
 
-# Valid sorting options
-VALID_SORT_OPTIONS = [
-    'name_asc',    # Name A-Z
-    'name_desc',   # Name Z-A
-    'id_asc',      # ID Ascending
-    'id_desc',     # ID Descending
-    'date_asc',    # Date Oldest First
-    'date_desc'    # Date Newest First
-]
-
-# Sort option display names (for UI)
-SORT_DISPLAY_NAMES = {
-    'name_asc': 'Name (A-Z)',
-    'name_desc': 'Name (Z-A)',
-    'id_asc': 'ID (Ascending)',
-    'id_desc': 'ID (Descending)',
-    'date_asc': 'Date (Oldest First)',
-    'date_desc': 'Date (Newest First)'
-}
-
 
 # =============================================================================
 # UI Layout Settings
@@ -119,18 +99,6 @@ EVE_SETTINGS_FOLDER = "settings_Default"
 BACKUP_FOLDER_NAME = "backups"
 BACKUP_FILE_EXTENSION = ".zip"
 BACKUP_TIMESTAMP_FORMAT = "%Y%m%d_%H%M%S"
-
-
-# =============================================================================
-# Multi-Monitor Detection Heuristic
-# =============================================================================
-# Aspect ratio threshold for detecting multi-monitor setups
-# Typical single monitor ratios: 16:9=1.78, 16:10=1.6, 21:9=2.33, 4:3=1.33
-# If aspect ratio > this threshold, assume multiple monitors
-MULTI_MONITOR_ASPECT_THRESHOLD = 2.5
-
-# Assumed aspect ratio for primary monitor when centering
-PRIMARY_MONITOR_ASPECT_RATIO = 1.78  # 16:9
 
 
 # =============================================================================

@@ -480,9 +480,10 @@ class DataFile:
         Args:
             sort_preference: Sorting preference string (e.g., 'name_asc', 'id_desc', 'date_asc').
         """
-        if sort_preference not in config.VALID_SORT_OPTIONS:
+        valid_options = ['name_asc', 'name_desc', 'id_asc', 'id_desc', 'date_asc', 'date_desc']
+        if sort_preference not in valid_options:
             raise ValidationError(
-                f"Invalid sort preference '{sort_preference}'. Must be one of: {', '.join(config.VALID_SORT_OPTIONS)}"
+                f"Invalid sort preference '{sort_preference}'. Must be one of: {', '.join(valid_options)}"
             )
         
         self._data['app_settings']['default_sorting'] = sort_preference
