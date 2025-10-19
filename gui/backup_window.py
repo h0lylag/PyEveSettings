@@ -1,11 +1,11 @@
 """Backup Manager window for PyEveSettings.
 
 Provides comprehensive backup management including:
-- View all backups across installations and servers
+- View all backups across profile paths and servers
 - Create new backups
 - Restore existing backups
 - Delete old backups
-- Filter by installation, server, and profile
+- Filter by profile path, server, and profile
 """
 
 import tkinter as tk
@@ -99,34 +99,37 @@ class BackupManagerWindow:
         """Create the filter controls section."""
         filter_frame = ttk.LabelFrame(parent, text="Filters", padding="5")
         filter_frame.grid(row=0, column=0, sticky="ew", pady=(0, 10))
-        filter_frame.columnconfigure(1, weight=1)
-        filter_frame.columnconfigure(3, weight=1)
-        filter_frame.columnconfigure(5, weight=1)
+        for col in (1, 2, 3, 4, 5):
+            filter_frame.columnconfigure(col, weight=1)
         
-        # Installation filter
-        ttk.Label(filter_frame, text="Installation:").grid(row=0, column=0, padx=(0, 5), sticky="w")
-        self.installation_var = tk.StringVar(value="All")
-        self.installation_combo = ttk.Combobox(filter_frame, textvariable=self.installation_var, 
-                                               state='readonly', width=30)
-        self.installation_combo.grid(row=0, column=1, padx=(0, 10), sticky="ew")
+        # Profile path filter (full-width row)
+        ttk.Label(filter_frame, text="Profile Path:").grid(row=0, column=0, padx=(0, 5), sticky="w")
+        self.profile_path_var = tk.StringVar(value="All")
+        self.profile_path_combo = ttk.Combobox(
+            filter_frame,
+            textvariable=self.profile_path_var,
+            state='readonly',
+            width=50,
+        )
+        self.profile_path_combo.grid(row=0, column=1, columnspan=5, padx=(0, 10), sticky="ew")
         
         # Server filter
-        ttk.Label(filter_frame, text="Server:").grid(row=0, column=2, padx=(0, 5), sticky="w")
+        ttk.Label(filter_frame, text="Server:").grid(row=1, column=0, padx=(0, 5), sticky="w")
         self.server_var = tk.StringVar(value="All")
         self.server_combo = ttk.Combobox(filter_frame, textvariable=self.server_var, 
                                          state='readonly', width=20)
-        self.server_combo.grid(row=0, column=3, padx=(0, 10), sticky="ew")
+        self.server_combo.grid(row=1, column=1, padx=(0, 10), sticky="ew")
         
         # Profile filter
-        ttk.Label(filter_frame, text="Profile:").grid(row=0, column=4, padx=(0, 5), sticky="w")
+        ttk.Label(filter_frame, text="Profile:").grid(row=1, column=2, padx=(0, 5), sticky="w")
         self.profile_var = tk.StringVar(value="All")
         self.profile_combo = ttk.Combobox(filter_frame, textvariable=self.profile_var, 
                                           state='readonly', width=20)
-        self.profile_combo.grid(row=0, column=5, padx=(0, 10), sticky="ew")
+        self.profile_combo.grid(row=1, column=3, padx=(0, 10), sticky="ew")
         
         # Buttons
         button_frame = ttk.Frame(filter_frame)
-        button_frame.grid(row=0, column=6, padx=(10, 0))
+        button_frame.grid(row=1, column=6, padx=(10, 0), sticky="e")
         
         self.refresh_btn = ttk.Button(button_frame, text="Refresh", width=10)
         self.refresh_btn.grid(row=0, column=0, padx=(0, 5))
@@ -150,7 +153,7 @@ class BackupManagerWindow:
         list_frame.rowconfigure(0, weight=1)
         
         # Create Treeview
-        columns = ('profile', 'datetime', 'size', 'files', 'server', 'installation')
+        columns = ('profile', 'datetime', 'size', 'files', 'server', 'profile_path')
         self.tree = ttk.Treeview(list_frame, columns=columns, show='headings', selectmode='browse')
         
         # Define column headings and widths
@@ -159,14 +162,14 @@ class BackupManagerWindow:
         self.tree.heading('size', text='Size')
         self.tree.heading('files', text='Files')
         self.tree.heading('server', text='Server')
-        self.tree.heading('installation', text='Installation Path')
+        self.tree.heading('profile_path', text='Profile Path')
         
         self.tree.column('profile', width=150)
         self.tree.column('datetime', width=140)
         self.tree.column('size', width=80)
         self.tree.column('files', width=60)
         self.tree.column('server', width=100)
-        self.tree.column('installation', width=250)
+        self.tree.column('profile_path', width=250)
         
         self.tree.grid(row=0, column=0, sticky="nsew")
         
@@ -226,7 +229,7 @@ class BackupManagerWindow:
     def _setup_event_handlers(self):
         """Connect event handlers to widgets."""
         # Filter combobox events
-        self.installation_combo.bind('<<ComboboxSelected>>', self._on_filter_changed)
+        self.profile_path_combo.bind('<<ComboboxSelected>>', self._on_filter_changed)
         self.server_combo.bind('<<ComboboxSelected>>', self._on_filter_changed)
         self.profile_combo.bind('<<ComboboxSelected>>', self._on_filter_changed)
         
@@ -255,7 +258,7 @@ class BackupManagerWindow:
     
     def _on_clear_filters(self):
         """Clear all filters."""
-        self.installation_var.set("All")
+        self.profile_path_var.set("All")
         self.server_var.set("All")
         self.profile_var.set("All")
         self._apply_filters()
@@ -285,7 +288,7 @@ class BackupManagerWindow:
         """Handle Create Backup button."""
         if not self.backup_directories:
             messagebox.showerror("No Backup Directories", 
-                               "No backup directories found. Please ensure you have EVE installations configured.")
+                               "No backup directories found. Please ensure you have EVE profile paths configured.")
             return
         
         # Show dialog using CreateBackupDialog
@@ -490,7 +493,7 @@ class BackupManagerWindow:
     # Data Loading and Display
     
     def _load_backups(self):
-        """Load all backups from all installations."""
+        """Load all backups from all profile paths."""
         print("[DEBUG] _load_backups() called", flush=True)
         self._set_status("Loading backups...", "blue")
         self.progress.start(10)
@@ -571,14 +574,14 @@ class BackupManagerWindow:
     
     def _update_filter_options(self):
         """Update filter combobox options based on loaded data."""
-        # Extract unique installations
-        installations = set()
+        # Extract unique profile paths
+        profile_paths = set()
         for backup in self.all_backups:
             if 'installation_path' in backup:
-                installations.add(str(backup['installation_path']))
+                profile_paths.add(str(backup['installation_path']))
         
-        installation_list = ['All'] + sorted(list(installations))
-        self.installation_combo['values'] = installation_list
+        profile_path_list = ['All'] + sorted(profile_paths)
+        self.profile_path_combo['values'] = profile_path_list
         
         # Extract unique servers
         servers = set()
@@ -600,7 +603,7 @@ class BackupManagerWindow:
     
     def _apply_filters(self):
         """Apply current filters and update treeview."""
-        installation = self.installation_var.get()
+        profile_path = self.profile_path_var.get()
         server = self.server_var.get()
         profile = self.profile_var.get()
         
@@ -608,7 +611,8 @@ class BackupManagerWindow:
         self.filtered_backups = []
         for backup in self.all_backups:
             # Check filters
-            if installation != "All" and str(backup.get('installation_path', '')) != installation:
+            installation_path_str = str(backup.get('installation_path', ''))
+            if profile_path != "All" and installation_path_str != profile_path:
                 continue
             if server != "All" and backup.get('server', '') != server:
                 continue
@@ -642,10 +646,12 @@ class BackupManagerWindow:
             # Format file count
             files_str = str(backup.get('file_count', 0))
             
-            # Get installation path (show basename only)
-            inst_path = backup.get('installation_path', 'Unknown')
-            if isinstance(inst_path, Path):
-                inst_path = str(inst_path.name) if inst_path.name else str(inst_path)
+            # Get profile path (show basename only)
+            path_value = backup.get('installation_path', 'Unknown')
+            if isinstance(path_value, Path):
+                path_display = str(path_value.name) if path_value.name else str(path_value)
+            else:
+                path_display = str(path_value)
             
             self.tree.insert('', 'end', values=(
                 backup.get('profile_name', 'Unknown'),
@@ -653,7 +659,7 @@ class BackupManagerWindow:
                 size_str,
                 files_str,
                 backup.get('server', 'Unknown'),
-                inst_path
+                path_display
             ), tags=(str(backup.get('path', '')),))
     
     def _update_stats(self):
@@ -682,7 +688,7 @@ class BackupManagerWindow:
         Args:
             state: 'normal' or 'disabled'.
         """
-        self.installation_combo.config(state='readonly' if state == 'normal' else 'disabled')
+        self.profile_path_combo.config(state='readonly' if state == 'normal' else 'disabled')
         self.server_combo.config(state='readonly' if state == 'normal' else 'disabled')
         self.profile_combo.config(state='readonly' if state == 'normal' else 'disabled')
         self.refresh_btn.config(state=state)

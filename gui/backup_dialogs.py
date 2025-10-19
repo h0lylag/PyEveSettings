@@ -277,7 +277,8 @@ class ViewDetailsDialog:
         details += f"Filename: {backup_path.name}\n"
         details += f"Profile Name: {self.backup_meta.get('profile_name', 'Unknown')}\n"
         details += f"Server: {self.backup_meta.get('server', 'Unknown')}\n"
-        details += f"Installation: {self.backup_meta.get('installation_path', 'Unknown')}\n\n"
+        profile_path = self.backup_meta.get('installation_path', 'Unknown')
+        details += f"Profile Path: {profile_path}\n\n"
         
         if self.backup_meta.get('datetime'):
             details += f"Created: {self.backup_meta['datetime'].strftime('%Y-%m-%d %H:%M:%S')}\n"
