@@ -13,7 +13,40 @@ from utils import DataFileError, ValidationError
 class DataFile:
     """Manages persistent data storage in JSON format.
     
-    Handles character name cache, invalid IDs, notes, and window settings.
+    This class handles all persistent application data including:
+    - Character name cache and validation status
+    - Account information
+    - Character and account notes
+    - Window geometry (size/position)
+    - User preferences (default sorting, custom EVE paths)
+    
+    Initialization Flow:
+    1. __init__: Sets up file path and empty data structure
+    2. load(): Called by application at startup
+       - First run: Creates new data structure with defaults (_initialize_new_file)
+       - Existing file: Loads JSON (_load_existing_file)
+       - Migration: Adds missing fields for backward compatibility (_ensure_data_integrity)
+    3. save(): Called when data changes
+       - Ensures directory exists
+       - Orders data structure consistently
+       - Writes JSON to disk
+    
+    Data Structure:
+    {
+        'settings': {
+            'width': int, 'height': int, 'x_pos': int, 'y_pos': int,
+            'default_sorting': str (e.g., 'date_desc'),
+            'custom_paths': List[str]
+        },
+        'character_ids': {
+            '<char_id>': {
+                'name': str, 'valid': bool, 'checked': ISO datetime, 'note': str
+            }
+        },
+        'account_ids': {
+            '<account_id>': {'note': str}
+        }
+    }
     """
     
     def __init__(self, file_path: Optional[Path] = None):
@@ -30,25 +63,22 @@ class DataFile:
     def load(self) -> Dict:
         """Load all data from the JSON file.
         
+        If the file doesn't exist, initializes a new data file with default structure.
+        If the file exists but is missing fields, migrates it to the current structure.
+        
         Returns:
             Dictionary containing all stored data.
-            Returns empty dict with default structure if file doesn't exist.
             
         Raises:
             DataFileError: If the file exists but cannot be read or parsed.
         """
         if not self.file_path.exists():
-            self._data = self._get_default_structure()
+            self._initialize_new_file()
             return self._data
             
         try:
-            with self.file_path.open('r', encoding='utf-8') as f:
-                self._data = json.load(f)
-            # Ensure all required keys exist
-            default = self._get_default_structure()
-            for key in default:
-                if key not in self._data:
-                    self._data[key] = default[key]
+            self._load_existing_file()
+            self._ensure_data_integrity()
             return self._data
         except json.JSONDecodeError as e:
             raise DataFileError(
@@ -63,8 +93,49 @@ class DataFile:
                 f"Unexpected error loading data file '{self.file_path}': {e}"
             ) from e
     
+    def _initialize_new_file(self) -> None:
+        """Initialize a new data file with default structure.
+        
+        Called when the data file doesn't exist on first run.
+        Creates the in-memory data structure but doesn't write to disk yet.
+        """
+        self._data = self._get_default_structure()
+    
+    def _load_existing_file(self) -> None:
+        """Load data from existing JSON file.
+        
+        Raises:
+            json.JSONDecodeError: If the JSON is invalid.
+            PermissionError: If the file cannot be read.
+        """
+        with self.file_path.open('r', encoding='utf-8') as f:
+            self._data = json.load(f)
+    
+    def _ensure_data_integrity(self) -> None:
+        """Ensure loaded data has all required fields.
+        
+        Migrates old data structures to current format by adding missing fields.
+        This allows backward compatibility when new fields are added.
+        """
+        default = self._get_default_structure()
+        
+        # Ensure all top-level keys exist
+        for key in default:
+            if key not in self._data:
+                self._data[key] = default[key]
+        
+        # Ensure app_settings has all required fields
+        if 'app_settings' in self._data:
+            default_app_settings = default['app_settings']
+            for field, default_value in default_app_settings.items():
+                if field not in self._data['app_settings']:
+                    self._data['app_settings'][field] = default_value
+    
     def save(self) -> bool:
         """Save all data to the JSON file.
+        
+        Ensures the data structure is properly ordered and formatted before writing.
+        Creates parent directories if they don't exist.
         
         Returns:
             True if successful.
@@ -73,23 +144,9 @@ class DataFile:
             DataFileError: If the file cannot be written.
         """
         try:
-            # Ensure directory exists
-            self.file_path.parent.mkdir(parents=True, exist_ok=True)
-            
-            # Create ordered data structure with window_settings first
-            ordered_data = {
-                'window_settings': self._data.get('window_settings', {
-                    'width': 800,
-                    'height': 600,
-                    'x_pos': 0,
-                    'y_pos': 0
-                }),
-                'character_ids': self._data.get('character_ids', {}),
-                'account_ids': self._data.get('account_ids', {})
-            }
-            
-            with self.file_path.open('w', encoding='utf-8') as f:
-                json.dump(ordered_data, f, indent=2)
+            self._ensure_directory_exists()
+            ordered_data = self._prepare_data_for_save()
+            self._write_to_file(ordered_data)
             return True
         except PermissionError as e:
             raise DataFileError(
@@ -103,6 +160,40 @@ class DataFile:
             raise DataFileError(
                 f"Unexpected error saving data file '{self.file_path}': {e}"
             ) from e
+    
+    def _ensure_directory_exists(self) -> None:
+        """Ensure the parent directory for the data file exists."""
+        self.file_path.parent.mkdir(parents=True, exist_ok=True)
+    
+    def _prepare_data_for_save(self) -> Dict:
+        """Prepare data structure for saving.
+        
+        Orders keys consistently: app_settings, character_ids, account_ids.
+        Ensures all required fields exist with defaults if missing.
+        
+        Returns:
+            Ordered dictionary ready for JSON serialization.
+        """
+        default = self._get_default_structure()
+        
+        return {
+            'app_settings': self._data.get('app_settings', default['app_settings']),
+            'character_ids': self._data.get('character_ids', {}),
+            'account_ids': self._data.get('account_ids', {})
+        }
+    
+    def _write_to_file(self, data: Dict) -> None:
+        """Write data to the JSON file.
+        
+        Args:
+            data: Dictionary to serialize and write.
+            
+        Raises:
+            PermissionError: If file cannot be written.
+            OSError: If file operation fails.
+        """
+        with self.file_path.open('w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2)
     
     def get_character_names(self) -> Dict[str, str]:
         """Get cached character ID to name mappings.
@@ -347,10 +438,13 @@ class DataFile:
             Dictionary with width, height, x_pos, y_pos keys.
         """
         default = {"width": 800, "height": 600, "x_pos": 0, "y_pos": 0}
-        return self._data.get('window_settings', default)
+        return self._data.get('app_settings', default)
     
     def set_window_settings(self, width: int, height: int, x_pos: int, y_pos: int) -> None:
-        """Set window settings.
+        """Set window position and size.
+        
+        Only updates the window geometry fields, preserving other app_settings
+        like default_sorting and custom_paths.
         
         Args:
             width: Window width in pixels.
@@ -358,12 +452,11 @@ class DataFile:
             x_pos: X position on screen.
             y_pos: Y position on screen.
         """
-        self._data['window_settings'] = {
-            'width': width,
-            'height': height,
-            'x_pos': x_pos,
-            'y_pos': y_pos
-        }
+        # Update only geometry fields, preserve other settings
+        self._data['app_settings']['width'] = width
+        self._data['app_settings']['height'] = height
+        self._data['app_settings']['x_pos'] = x_pos
+        self._data['app_settings']['y_pos'] = y_pos
     
     def get_default_sorting(self) -> str:
         """Get default sorting preference.
@@ -372,8 +465,8 @@ class DataFile:
             Sorting preference string (e.g., 'name_asc', 'id_desc', 'date_asc').
             Defaults to 'date_desc' if not set.
         """
-        window_settings = self._data.get('window_settings', {})
-        return window_settings.get('default_sorting', 'date_desc')
+        app_settings = self._data.get('app_settings', {})
+        return app_settings.get('default_sorting', 'date_desc')
     
     def set_default_sorting(self, sort_preference: str) -> None:
         """Set default sorting preference.
@@ -387,17 +480,7 @@ class DataFile:
                 f"Invalid sort preference '{sort_preference}'. Must be one of: {', '.join(valid_options)}"
             )
         
-        # Ensure window_settings exists
-        if 'window_settings' not in self._data:
-            self._data['window_settings'] = {
-                'width': 800,
-                'height': 600,
-                'x_pos': 0,
-                'y_pos': 0,
-                'default_sorting': 'date_desc'
-            }
-        
-        self._data['window_settings']['default_sorting'] = sort_preference
+        self._data['app_settings']['default_sorting'] = sort_preference
     
     def get_custom_paths(self) -> List[str]:
         """Get custom EVE installation paths.
@@ -405,8 +488,8 @@ class DataFile:
         Returns:
             List of custom path strings.
         """
-        window_settings = self._data.get('window_settings', {})
-        return window_settings.get('custom_paths', [])
+        app_settings = self._data.get('app_settings', {})
+        return app_settings.get('custom_paths', [])
     
     def set_custom_paths(self, paths: List[str]) -> None:
         """Set custom EVE installation paths.
@@ -414,34 +497,36 @@ class DataFile:
         Args:
             paths: List of path strings to custom EVE installations.
         """
-        # Ensure window_settings exists
-        if 'window_settings' not in self._data:
-            self._data['window_settings'] = {
-                'width': 800,
-                'height': 600,
-                'x_pos': 0,
-                'y_pos': 0,
-                'default_sorting': 'name_asc'
-            }
-        
-        self._data['window_settings']['custom_paths'] = paths
+        self._data['app_settings']['custom_paths'] = paths
     
     @staticmethod
     def _get_default_structure() -> Dict:
-        """Get the default data structure.
+        """Get the default data structure for a fresh installation.
+        
+        This is the single source of truth for:
+        - Default values (window size, sorting preference, etc.)
+        - Required fields in the JSON structure
+        - Data migration when adding new fields
+        
+        When adding new fields:
+        1. Add them here with appropriate defaults
+        2. _ensure_data_integrity() will automatically migrate existing files
         
         Returns:
-            Dictionary with default empty values for all data fields.
+            Dictionary with default values for all data fields:
+            - app_settings: UI state (geometry + preferences)
+            - character_ids: Character name cache and metadata
+            - account_ids: Account metadata
         """
         return {
-            'window_settings': {
-                'width': 800,
-                'height': 600,
-                'x_pos': 0,
-                'y_pos': 0,
-                'default_sorting': 'date_desc',
-                'custom_paths': []
+            'app_settings': {
+                'width': 800,           # Default window width
+                'height': 600,          # Default window height
+                'x_pos': 0,             # Default X position
+                'y_pos': 0,             # Default Y position
+                'default_sorting': 'date_desc',  # Sort by newest first
+                'custom_paths': []      # No custom EVE paths by default
             },
-            'character_ids': {},
-            'account_ids': {}
+            'character_ids': {},        # Empty on first run
+            'account_ids': {}           # Empty on first run
         }
