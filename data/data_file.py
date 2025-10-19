@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 from typing import Dict, Set, Optional
 from datetime import datetime, timezone
+from exceptions import DataFileError, ValidationError
 
 
 class DataFile:
@@ -32,6 +33,9 @@ class DataFile:
         Returns:
             Dictionary containing all stored data.
             Returns empty dict with default structure if file doesn't exist.
+            
+        Raises:
+            DataFileError: If the file exists but cannot be read or parsed.
         """
         if not self.file_path.exists():
             self._data = self._get_default_structure()
@@ -47,19 +51,26 @@ class DataFile:
                     self._data[key] = default[key]
             return self._data
         except json.JSONDecodeError as e:
-            print(f"Warning: Corrupt data file, using defaults: {e}")
-            self._data = self._get_default_structure()
-            return self._data
+            raise DataFileError(
+                f"Data file is corrupted or contains invalid JSON: {e}"
+            ) from e
+        except PermissionError as e:
+            raise DataFileError(
+                f"Permission denied reading data file '{self.file_path}': {e}"
+            ) from e
         except Exception as e:
-            print(f"Warning: Error loading data file, using defaults: {e}")
-            self._data = self._get_default_structure()
-            return self._data
+            raise DataFileError(
+                f"Unexpected error loading data file '{self.file_path}': {e}"
+            ) from e
     
     def save(self) -> bool:
         """Save all data to the JSON file.
         
         Returns:
-            True if successful, False otherwise.
+            True if successful.
+            
+        Raises:
+            DataFileError: If the file cannot be written.
         """
         try:
             # Ensure directory exists
@@ -80,9 +91,18 @@ class DataFile:
             with self.file_path.open('w', encoding='utf-8') as f:
                 json.dump(ordered_data, f, indent=2)
             return True
+        except PermissionError as e:
+            raise DataFileError(
+                f"Permission denied writing to '{self.file_path}': {e}"
+            ) from e
+        except OSError as e:
+            raise DataFileError(
+                f"Failed to create directory or write file '{self.file_path}': {e}"
+            ) from e
         except Exception as e:
-            print(f"Error saving data file: {e}")
-            return False
+            raise DataFileError(
+                f"Unexpected error saving data file '{self.file_path}': {e}"
+            ) from e
     
     def get_character_names(self) -> Dict[str, str]:
         """Get cached character ID to name mappings.
@@ -209,8 +229,16 @@ class DataFile:
         
         Args:
             char_id: Character ID.
-            note: Note text.
+            note: Note text (max 100 characters).
+            
+        Raises:
+            ValidationError: If note exceeds maximum length.
         """
+        if len(note) > 100:
+            raise ValidationError(
+                f"Character note exceeds maximum length of 100 characters (got {len(note)})"
+            )
+        
         char_id_str = str(char_id)
         
         if 'character_ids' not in self._data:
@@ -243,8 +271,16 @@ class DataFile:
         
         Args:
             account_id: Account ID.
-            note: Note text.
+            note: Note text (max 100 characters).
+            
+        Raises:
+            ValidationError: If note exceeds maximum length.
         """
+        if len(note) > 100:
+            raise ValidationError(
+                f"Account note exceeds maximum length of 100 characters (got {len(note)})"
+            )
+        
         account_id_str = str(account_id)
         
         if 'account_ids' not in self._data:

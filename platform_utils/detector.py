@@ -2,6 +2,7 @@
 
 import platform
 from enum import Enum
+from exceptions import PlatformNotSupportedError
 
 
 class Platform(Enum):

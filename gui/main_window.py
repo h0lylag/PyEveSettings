@@ -11,6 +11,7 @@ from api import APICache, ESIClient
 from platform_utils import EVEPathResolver
 from utils.core import SettingsManager
 from utils.models import SettingFile
+from exceptions import DataFileError, PlatformNotSupportedError
 from .widgets import create_main_layout
 from .handlers import EventHandlers
 from .helpers import center_window, sort_tree
@@ -47,34 +48,57 @@ class PyEveSettingsGUI:
         self.root.after(100, self.start_loading_data)
     
     def _init_data_layer(self) -> None:
-        """Initialize data persistence layer."""
-        self.data_file = DataFile()
-        data = self.data_file.load()
+        """Initialize data persistence layer.
         
-        # Initialize window settings
-        self.window_settings = WindowSettings.from_dict(
-            self.data_file.get_window_settings()
-        )
-        
-        # Initialize notes manager
-        self.notes_manager = NotesManager()
-        self.notes_manager.load_from_dict(
-            self.data_file.get_character_notes(),
-            self.data_file.get_account_notes()
-        )
+        Raises:
+            SystemExit: If data file cannot be loaded.
+        """
+        try:
+            self.data_file = DataFile()
+            data = self.data_file.load()
+            
+            # Initialize window settings
+            self.window_settings = WindowSettings.from_dict(
+                self.data_file.get_window_settings()
+            )
+            
+            # Initialize notes manager
+            self.notes_manager = NotesManager()
+            self.notes_manager.load_from_dict(
+                self.data_file.get_character_notes(),
+                self.data_file.get_account_notes()
+            )
+        except DataFileError as e:
+            messagebox.showerror(
+                "Data File Error",
+                f"Failed to load application data:\n\n{e}\n\n"
+                "The application will now exit."
+            )
+            raise SystemExit(1) from e
     
     def _init_managers(self) -> None:
-        """Initialize API cache and settings manager."""
-        # Initialize API cache
-        self.api_cache = APICache(ESIClient())
-        # Convert string keys to int for cache loading
-        char_names = {int(k): v for k, v in self.data_file.get_character_names().items()}
-        invalid_ids = {int(i) for i in self.data_file.get_invalid_ids()}
-        self.api_cache.load_cache(char_names, invalid_ids)
+        """Initialize API cache and settings manager.
         
-        # Initialize settings manager with dependencies
-        path_resolver = EVEPathResolver()
-        self.manager = SettingsManager(path_resolver, self.api_cache)
+        Raises:
+            SystemExit: If platform is not supported.
+        """
+        try:
+            # Initialize API cache
+            self.api_cache = APICache(ESIClient())
+            # Convert string keys to int for cache loading
+            char_names = {int(k): v for k, v in self.data_file.get_character_names().items()}
+            invalid_ids = {int(i) for i in self.data_file.get_invalid_ids()}
+            self.api_cache.load_cache(char_names, invalid_ids)
+            
+            # Initialize settings manager with dependencies
+            path_resolver = EVEPathResolver()
+            self.manager = SettingsManager(path_resolver, self.api_cache)
+        except PlatformNotSupportedError as e:
+            messagebox.showerror(
+                "Platform Not Supported",
+                f"{e}\n\nThe application will now exit."
+            )
+            raise SystemExit(1) from e
     
     def _apply_window_geometry(self) -> None:
         """Apply saved window geometry or default size."""

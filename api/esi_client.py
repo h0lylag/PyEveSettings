@@ -4,6 +4,7 @@ import http.client
 import json
 import socket
 from typing import Optional
+from exceptions import ESIError, InvalidCharacterError
 
 
 class ESIClient:
@@ -21,37 +22,51 @@ class ESIClient:
             char_id: Character ID to fetch.
             
         Returns:
-            Character name if successful, None otherwise.
+            Character name if successful, None for invalid character IDs.
+            
+        Raises:
+            ESIError: If API connection fails after retries or unexpected error occurs.
+            InvalidCharacterError: If the character ID is invalid (404).
         """
         for attempt in range(self.MAX_RETRIES):
             try:
                 result = self._make_request(f"/latest/characters/{char_id}/")
                 
                 if result is None:
-                    # Could be 404 (invalid ID) or other non-retryable error
                     return None
                 
                 return result.get('name')
+            
+            except InvalidCharacterError:
+                # Invalid character ID (404) - don't retry
+                return None
                 
             except socket.timeout:
                 if attempt < self.MAX_RETRIES - 1:
                     print(f"  Timeout for character {char_id}, retrying (attempt {attempt + 2}/{self.MAX_RETRIES})...")
                     continue
                 else:
-                    print(f"  Timeout for character {char_id} after {self.MAX_RETRIES} attempts")
-                    return None
+                    raise ESIError(
+                        f"Timeout fetching character {char_id} after {self.MAX_RETRIES} attempts"
+                    )
                     
             except (socket.error, ConnectionError) as e:
                 if attempt < self.MAX_RETRIES - 1:
                     print(f"  Connection error for {char_id}, retrying...")
                     continue
                 else:
-                    print(f"  Connection error for character {char_id} after {self.MAX_RETRIES} attempts")
-                    return None
+                    raise ESIError(
+                        f"Connection error for character {char_id} after {self.MAX_RETRIES} attempts: {e}"
+                    ) from e
+                    
+            except ESIError:
+                # Re-raise ESI errors (from _handle_response)
+                raise
                     
             except Exception as e:
-                print(f"  Unexpected error for character {char_id}: {e}")
-                return None
+                raise ESIError(
+                    f"Unexpected error fetching character {char_id}: {e}"
+                ) from e
         
         return None
     
@@ -91,25 +106,26 @@ class ESIClient:
             data: Response body as bytes.
             
         Returns:
-            Parsed JSON response, or None if error.
+            Parsed JSON response if successful.
+            
+        Raises:
+            InvalidCharacterError: If character ID is invalid (404).
+            ESIError: For server errors or JSON decode failures.
         """
         if status_code == 200:
             try:
                 return json.loads(data.decode('utf-8'))
             except json.JSONDecodeError as e:
-                print(f"  JSON decode error: {e}")
-                return None
+                raise ESIError(f"Failed to decode ESI response: {e}") from e
                 
         elif status_code == 404:
             # Invalid character ID - don't retry
-            return None
+            raise InvalidCharacterError(f"Character ID not found (HTTP 404)")
             
         elif status_code >= 500:
             # Server error - caller can retry
-            print(f"  Server error: HTTP {status_code}")
-            raise ConnectionError(f"ESI server error: {status_code}")
+            raise ESIError(f"ESI server error: HTTP {status_code}")
             
         else:
-            # Other error - don't retry
-            print(f"  HTTP error: {status_code}")
-            return None
+            # Other error
+            raise ESIError(f"ESI request failed: HTTP {status_code}")

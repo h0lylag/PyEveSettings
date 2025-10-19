@@ -5,6 +5,7 @@ from tkinter import messagebox, filedialog, simpledialog
 from typing import Optional, TYPE_CHECKING
 from pathlib import Path
 from datetime import datetime
+from exceptions import ValidationError, DataFileError
 from .dialogs import show_character_selection_dialog, show_account_selection_dialog
 from .helpers import sort_tree
 
@@ -171,10 +172,13 @@ class EventHandlers:
         
         if new_note is not None:
             new_note = new_note[:20]
-            self.app.notes_manager.set_character_note(str(char.id), new_note)
-            self.app.data_file.set_character_note(str(char.id), new_note)
-            self.app.data_file.save()
-            self.update_character_lists()
+            try:
+                self.app.notes_manager.set_character_note(str(char.id), new_note)
+                self.app.data_file.set_character_note(str(char.id), new_note)
+                self.app.data_file.save()
+                self.update_character_lists()
+            except (ValidationError, DataFileError) as e:
+                messagebox.showerror("Error Saving Note", str(e))
     
     def edit_account_note(self) -> None:
         """Edit note for selected account."""
@@ -201,10 +205,13 @@ class EventHandlers:
         
         if new_note is not None:
             new_note = new_note[:20]
-            self.app.notes_manager.set_account_note(str(user.id), new_note)
-            self.app.data_file.set_account_note(str(user.id), new_note)
-            self.app.data_file.save()
-            self.update_character_lists()
+            try:
+                self.app.notes_manager.set_account_note(str(user.id), new_note)
+                self.app.data_file.set_account_note(str(user.id), new_note)
+                self.app.data_file.save()
+                self.update_character_lists()
+            except (ValidationError, DataFileError) as e:
+                messagebox.showerror("Error Saving Note", str(e))
     
     def char_overwrite_all(self) -> None:
         """Overwrite settings to all characters in current profile."""

@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 from typing import List, Optional
 from .detector import Platform, detect_platform
+from exceptions import SettingsNotFoundError, PlatformNotSupportedError
 
 
 class EVEPathResolver:
@@ -18,13 +19,22 @@ class EVEPathResolver:
         
         Returns:
             Path to EVE settings base directory, or None if not found.
+            
+        Raises:
+            PlatformNotSupportedError: If the current platform is not supported.
         """
         if self.platform == Platform.WINDOWS:
             return self._get_windows_path()
         elif self.platform == Platform.LINUX:
             return self._get_linux_path()
+        elif self.platform == Platform.MACOS:
+            raise PlatformNotSupportedError(
+                "macOS is not yet supported. Please use Windows or Linux."
+            )
         else:
-            return None
+            raise PlatformNotSupportedError(
+                f"Unknown or unsupported platform: {self.platform}"
+            )
     
     def _get_windows_path(self) -> Optional[Path]:
         """Get Windows EVE path.
