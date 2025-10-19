@@ -1,5 +1,6 @@
 """Backup manager for EVE settings profiles."""
 
+import shutil
 import zipfile
 from pathlib import Path
 from typing import Optional
@@ -186,15 +187,53 @@ class BackupManager:
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 folder_name = f"settings_restored_{timestamp}"
                 restore_to = self.base_path / folder_name
+            else:
+                # If restore_to is relative, place it under the base path
+                if not restore_to.is_absolute():
+                    restore_to = self.base_path / restore_to
+
+                # If overwriting an existing profile, remove it first to avoid nested folders
+                if restore_to.exists():
+                    if restore_to.is_dir():
+                        shutil.rmtree(restore_to)
+                    else:
+                        restore_to.unlink()
             
             # Create restore directory
             restore_to.mkdir(parents=True, exist_ok=True)
             
             # Extract backup
             files_restored = 0
+            profile_root = self.get_profile_name_from_backup(backup_path)
+
             with zipfile.ZipFile(backup_path, 'r') as zipf:
-                zipf.extractall(restore_to)
-                files_restored = len(zipf.namelist())
+                for member in zipf.infolist():
+                    member_path = Path(member.filename)
+
+                    # Skip empty names
+                    if not member_path.parts:
+                        continue
+
+                    parts = member_path.parts
+
+                    # Strip the top-level profile folder if it matches the expected root
+                    if profile_root and parts[0] == profile_root:
+                        parts = parts[1:]
+
+                    if not parts:
+                        # Entry corresponds to the top-level directory; already handled
+                        continue
+
+                    target_path = restore_to.joinpath(*parts)
+
+                    if member.is_dir():
+                        target_path.mkdir(parents=True, exist_ok=True)
+                        continue
+
+                    target_path.parent.mkdir(parents=True, exist_ok=True)
+                    with zipf.open(member, 'r') as source, target_path.open('wb') as dest:
+                        shutil.copyfileobj(source, dest)
+                    files_restored += 1
             
             return True, f"Restored {files_restored} files to {restore_to.name}"
             
