@@ -96,12 +96,12 @@ class SettingFile:
     
     @staticmethod
     def load_cache() -> Dict[int, str]:
-        """Load character names, notes, and invalid IDs from cache file"""
+        """Load character names, notes, window settings, and invalid IDs from data file"""
         global _INVALID_CHARACTER_IDS, _CHARACTER_NOTES, _ACCOUNT_NOTES, _WINDOW_SETTINGS, _CHARACTER_NAME_CACHE
         
-        if _CACHE_FILE.exists():
+        if _DATA_FILE.exists():
             try:
-                with open(_CACHE_FILE, 'r') as f:
+                with open(_DATA_FILE, 'r') as f:
                     data = json.load(f)
                     
                     names = {}
@@ -214,7 +214,7 @@ class SettingFile:
     
     @staticmethod
     def save_cache(cache: Dict[int, str]) -> None:
-        """Save character names, notes, and invalid IDs to cache file"""
+        """Save character names, notes, window settings, and invalid IDs to data file"""
         try:
             # Build character_ids section with valid field for all IDs
             character_ids = {}
@@ -247,7 +247,7 @@ class SettingFile:
                     }
             
             # Save to file with flat structure
-            with open(_CACHE_FILE, 'w') as f:
+            with open(_DATA_FILE, 'w') as f:
                 data = {
                     'window_settings': {
                         'width': _WINDOW_SETTINGS['width'],
