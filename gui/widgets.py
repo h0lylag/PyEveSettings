@@ -90,14 +90,24 @@ def create_main_layout(root: tk.Tk) -> dict:
     progress.grid(row=2, column=0, columnspan=3, pady=(0, 10), sticky="ew")
     progress.start(10)
     
-    # Create profiles panel
-    profiles_widgets = create_profiles_panel(main_frame)
+    # Create PanedWindow for resizable panels
+    paned_window = ttk.PanedWindow(main_frame, orient=tk.HORIZONTAL)
+    paned_window.grid(row=3, column=0, columnspan=3, sticky="nsew")
     
-    # Create characters panel
-    chars_widgets = create_characters_panel(main_frame)
+    # Create container frames for each panel
+    profiles_container = ttk.Frame(paned_window)
+    chars_container = ttk.Frame(paned_window)
+    accounts_container = ttk.Frame(paned_window)
     
-    # Create accounts panel
-    accounts_widgets = create_accounts_panel(main_frame)
+    # Add containers to paned window
+    paned_window.add(profiles_container, weight=1)
+    paned_window.add(chars_container, weight=2)
+    paned_window.add(accounts_container, weight=2)
+    
+    # Create panels inside their containers
+    profiles_widgets = create_profiles_panel(profiles_container)
+    chars_widgets = create_characters_panel(chars_container)
+    accounts_widgets = create_accounts_panel(accounts_container)
     
     # Return all widget references
     return {
@@ -115,8 +125,12 @@ def create_main_layout(root: tk.Tk) -> dict:
 
 def create_profiles_panel(parent: ttk.Frame) -> dict:
     """Create profiles panel (left column)"""
+    # Configure parent to expand
+    parent.rowconfigure(0, weight=1)
+    parent.columnconfigure(0, weight=1)
+    
     profiles_frame = ttk.LabelFrame(parent, text="Profiles", padding="5")
-    profiles_frame.grid(row=3, column=0, sticky="nsew", padx=(0, 5))
+    profiles_frame.grid(row=0, column=0, sticky="nsew")
     profiles_frame.rowconfigure(0, weight=1)
     profiles_frame.columnconfigure(0, weight=1)
     
@@ -150,8 +164,12 @@ def create_profiles_panel(parent: ttk.Frame) -> dict:
 
 def create_characters_panel(parent: ttk.Frame) -> dict:
     """Create characters panel (middle column)"""
+    # Configure parent to expand
+    parent.rowconfigure(0, weight=1)
+    parent.columnconfigure(0, weight=1)
+    
     chars_frame = ttk.LabelFrame(parent, text="Characters", padding="5")
-    chars_frame.grid(row=3, column=1, sticky="nsew", padx=5)
+    chars_frame.grid(row=0, column=0, sticky="nsew")
     chars_frame.rowconfigure(0, weight=1)
     chars_frame.columnconfigure(0, weight=1)
     
@@ -197,8 +215,12 @@ def create_characters_panel(parent: ttk.Frame) -> dict:
 
 def create_accounts_panel(parent: ttk.Frame) -> dict:
     """Create accounts panel (right column)"""
+    # Configure parent to expand
+    parent.rowconfigure(0, weight=1)
+    parent.columnconfigure(0, weight=1)
+    
     accounts_frame = ttk.LabelFrame(parent, text="Accounts", padding="5")
-    accounts_frame.grid(row=3, column=2, sticky="nsew", padx=(5, 0))
+    accounts_frame.grid(row=0, column=0, sticky="nsew")
     accounts_frame.rowconfigure(0, weight=1)
     accounts_frame.columnconfigure(0, weight=1)
     accounts_frame.columnconfigure(0, weight=1)
