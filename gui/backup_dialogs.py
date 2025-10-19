@@ -9,7 +9,9 @@ from pathlib import Path
 from typing import Optional, List, Dict, Callable
 import zipfile
 
+import config
 from utils import BackupManager
+from .helpers import center_dialog
 
 
 class CreateBackupDialog:
@@ -119,47 +121,62 @@ class RestoreBackupDialog:
         """
         self.backup_meta = backup_meta
         self.on_restore = on_restore
-        
+
+        default_width = config.RESTORE_DIALOG_WIDTH
+        default_height = config.RESTORE_DIALOG_HEIGHT
+
         # Create dialog
         self.dialog = tk.Toplevel(parent)
         self.dialog.title("Restore Backup")
-        self.dialog.geometry("450x250")
+        self.dialog.geometry(f"{default_width}x{default_height}")
+        self.dialog.minsize(default_width, default_height)
         self.dialog.transient(parent)
         self.dialog.grab_set()
-        
-        frame = ttk.Frame(self.dialog, padding="10")
+
+        frame = ttk.Frame(self.dialog, padding="12")
         frame.grid(row=0, column=0, sticky="nsew")
         self.dialog.columnconfigure(0, weight=1)
         self.dialog.rowconfigure(0, weight=1)
-        
+        frame.columnconfigure(0, weight=1)
+
         # Show backup info
-        info_text = f"Restore backup:\n\n"
+        info_text = "Restore backup:\n\n"
         info_text += f"Profile: {backup_meta.get('profile_name', 'Unknown')}\n"
         dt = backup_meta.get('datetime')
         info_text += f"Date: {dt.strftime('%Y-%m-%d %H:%M:%S') if dt else 'Unknown'}\n"
         info_text += f"Size: {backup_meta.get('size_mb', 0):.1f} MB\n"
         info_text += f"Files: {backup_meta.get('file_count', 0)}\n\n"
         info_text += "Choose restore location:"
-        
-        ttk.Label(frame, text=info_text, justify="left").grid(row=0, column=0, sticky="w", pady=(0, 10))
-        
+
+        ttk.Label(frame, text=info_text, justify="left", anchor="w").grid(row=0, column=0, sticky="w", pady=(0, 10))
+
         self.restore_option = tk.StringVar(value="new")
-        ttk.Radiobutton(frame, text="Restore to new profile (recommended)", 
-                       variable=self.restore_option, value="new").grid(row=1, column=0, sticky="w")
-        ttk.Radiobutton(frame, text="Overwrite original profile (⚠ Warning: will replace existing files)", 
-                       variable=self.restore_option, value="overwrite").grid(row=2, column=0, sticky="w", pady=(5, 0))
-        
+        ttk.Radiobutton(
+            frame,
+            text="Restore to new profile (recommended)",
+            variable=self.restore_option,
+            value="new"
+        ).grid(row=1, column=0, sticky="w")
+        ttk.Radiobutton(
+            frame,
+            text="Overwrite original profile (⚠ Warning: will replace existing files)",
+            variable=self.restore_option,
+            value="overwrite"
+        ).grid(row=2, column=0, sticky="w", pady=(5, 0))
+
         # Buttons
         button_frame = ttk.Frame(frame)
         button_frame.grid(row=3, column=0, sticky="e", pady=(20, 0))
-        
-        ttk.Button(button_frame, text="Restore", command=self._on_restore, 
-                  width=12).grid(row=0, column=0, padx=(0, 5))
-        ttk.Button(button_frame, text="Cancel", command=self.dialog.destroy, 
-                  width=10).grid(row=0, column=1)
-        
+
+        ttk.Button(button_frame, text="Restore", command=self._on_restore, width=12).grid(
+            row=0, column=0, padx=(0, 5)
+        )
+        ttk.Button(button_frame, text="Cancel", command=self.dialog.destroy, width=10).grid(
+            row=0, column=1
+        )
+
         # Center dialog
-        self._center_dialog(parent, 450, 250)
+        self._center_dialog(parent, default_width, default_height)
     
     def _on_restore(self):
         """Handle Restore button click."""
@@ -186,10 +203,7 @@ class RestoreBackupDialog:
     
     def _center_dialog(self, parent, width: int, height: int):
         """Center dialog over parent."""
-        self.dialog.update_idletasks()
-        x = parent.winfo_x() + (parent.winfo_width() - width) // 2
-        y = parent.winfo_y() + (parent.winfo_height() - height) // 2
-        self.dialog.geometry(f"{width}x{height}+{x}+{y}")
+        center_dialog(self.dialog, parent, width, height)
 
 
 class ViewDetailsDialog:
