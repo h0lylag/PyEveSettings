@@ -437,7 +437,7 @@ class DataFile:
         Returns:
             Dictionary with width, height, x_pos, y_pos keys.
         """
-        default = {"width": 800, "height": 600, "x_pos": 0, "y_pos": 0}
+        default = {"width": 1800, "height": 1000, "x_pos": 0, "y_pos": 0}
         return self._data.get('app_settings', default)
     
     def set_window_settings(self, width: int, height: int, x_pos: int, y_pos: int) -> None:
@@ -463,10 +463,10 @@ class DataFile:
         
         Returns:
             Sorting preference string (e.g., 'name_asc', 'id_desc', 'date_asc').
-            Defaults to 'date_desc' if not set.
+            Defaults to 'name_asc' if not set.
         """
         app_settings = self._data.get('app_settings', {})
-        return app_settings.get('default_sorting', 'date_desc')
+        return app_settings.get('default_sorting', 'name_asc')
     
     def set_default_sorting(self, sort_preference: str) -> None:
         """Set default sorting preference.
@@ -524,7 +524,7 @@ class DataFile:
                 'height': 600,          # Default window height
                 'x_pos': 0,             # Default X position
                 'y_pos': 0,             # Default Y position
-                'default_sorting': 'date_desc',  # Sort by newest first
+                'default_sorting': 'name_asc',  # Sort by name A-Z by default
                 'custom_paths': []      # No custom EVE paths by default
             },
             'character_ids': {},        # Empty on first run
