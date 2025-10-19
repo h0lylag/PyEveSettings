@@ -26,11 +26,17 @@ class CharacterESIResponse:
 # Global cache for character names (populated via API calls)
 _CHARACTER_NAME_CACHE: Dict[int, str] = {}
 
+# Global cache for character notes
+_CHARACTER_NOTES: Dict[int, str] = {}
+
+# Global cache for account notes
+_ACCOUNT_NOTES: Dict[int, str] = {}
+
 # Set of invalid character IDs (404s from API)
 _INVALID_CHARACTER_IDS: set = set()
 
 # Cache file path
-_CACHE_FILE = Path(__file__).parent.parent / "chars.json"
+_CACHE_FILE = Path(__file__).parent.parent / "py-eve-settings.json"
 
 
 class SettingFile:
@@ -80,25 +86,43 @@ class SettingFile:
     
     @staticmethod
     def load_cache() -> Dict[int, str]:
-        """Load character names and invalid IDs from cache file"""
-        global _INVALID_CHARACTER_IDS
+        """Load character names, notes, and invalid IDs from cache file"""
+        global _INVALID_CHARACTER_IDS, _CHARACTER_NOTES, _ACCOUNT_NOTES
         
         if _CACHE_FILE.exists():
             try:
                 with open(_CACHE_FILE, 'r') as f:
                     data = json.load(f)
                     
-                    # Load valid character names
+                    # Load character data
                     names = {}
-                    if 'characters' in data:
-                        names = {int(k): v for k, v in data['characters'].items()}
-                    else:
-                        # Old format - just a dict of IDs to names
-                        names = {int(k): v for k, v in data.items() if k != 'invalid_ids'}
+                    if 'characters' in data and isinstance(data['characters'], dict):
+                        for char_id, char_data in data['characters'].items():
+                            char_id = int(char_id)
+                            if isinstance(char_data, dict):
+                                # New format: {"name": ..., "note": ...}
+                                names[char_id] = char_data.get('name', 'unknown')
+                                _CHARACTER_NOTES[char_id] = char_data.get('note', '')
+                            else:
+                                # Old format: just the name string
+                                names[char_id] = char_data
                     
-                    # Load invalid IDs
-                    if 'invalid_ids' in data:
+                    # Load invalid character IDs
+                    if 'invalid_character_ids' in data:
+                        _INVALID_CHARACTER_IDS = set(data['invalid_character_ids'])
+                    elif 'invalid_ids' in data:
+                        # Old format compatibility
                         _INVALID_CHARACTER_IDS = set(data['invalid_ids'])
+                    
+                    # Load account notes (accounts only have notes, no names)
+                    if 'accounts' in data and isinstance(data['accounts'], dict):
+                        for acct_id, acct_data in data['accounts'].items():
+                            acct_id = int(acct_id)
+                            if isinstance(acct_data, dict):
+                                _ACCOUNT_NOTES[acct_id] = acct_data.get('note', '')
+                            else:
+                                # If it's just a string, treat it as a note
+                                _ACCOUNT_NOTES[acct_id] = acct_data if isinstance(acct_data, str) else ''
                     
                     return names
             except Exception as e:
@@ -107,12 +131,30 @@ class SettingFile:
     
     @staticmethod
     def save_cache(cache: Dict[int, str]) -> None:
-        """Save character names and invalid IDs to cache file"""
+        """Save character names, notes, and invalid IDs to cache file"""
         try:
+            # Build characters section (name + note only)
+            characters = {}
+            for char_id, char_name in cache.items():
+                characters[str(char_id)] = {
+                    "name": char_name,
+                    "note": _CHARACTER_NOTES.get(char_id, "")
+                }
+            
+            # Build accounts section (note only)
+            accounts = {}
+            for acct_id, note in _ACCOUNT_NOTES.items():
+                if note:  # Only save if there's actually a note
+                    accounts[str(acct_id)] = {
+                        "note": note
+                    }
+            
+            # Save to file
             with open(_CACHE_FILE, 'w') as f:
                 data = {
-                    'characters': {str(k): v for k, v in cache.items()},
-                    'invalid_ids': list(_INVALID_CHARACTER_IDS)
+                    'characters': characters,
+                    'invalid_character_ids': list(_INVALID_CHARACTER_IDS),
+                    'accounts': accounts
                 }
                 json.dump(data, f, indent=2)
         except Exception as e:
@@ -279,3 +321,38 @@ class SettingFile:
     def last_modified(self) -> float:
         """Get the last modified timestamp"""
         return self.path.stat().st_mtime
+
+
+# Helper functions for notes management
+def get_character_note(char_id: int) -> str:
+    """Get note for a character"""
+    return _CHARACTER_NOTES.get(char_id, "")
+
+
+def set_character_note(char_id: int, note: str) -> None:
+    """Set note for a character"""
+    _CHARACTER_NOTES[char_id] = note
+    # Save cache to persist notes
+    SettingFile.save_cache(_CHARACTER_NAME_CACHE)
+
+
+def get_account_note(acct_id: int) -> str:
+    """Get note for an account"""
+    return _ACCOUNT_NOTES.get(acct_id, "")
+
+
+def set_account_note(acct_id: int, note: str) -> None:
+    """Set note for an account"""
+    _ACCOUNT_NOTES[acct_id] = note
+    # Save cache to persist notes
+    SettingFile.save_cache(_CHARACTER_NAME_CACHE)
+
+
+def get_all_character_notes() -> Dict[int, str]:
+    """Get all character notes"""
+    return _CHARACTER_NOTES.copy()
+
+
+def get_all_account_notes() -> Dict[int, str]:
+    """Get all account notes"""
+    return _ACCOUNT_NOTES.copy()

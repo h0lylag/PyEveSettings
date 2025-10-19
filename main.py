@@ -2,7 +2,7 @@
 Main entry point for EANM application
 """
 
-from eanm.gui import EANMGUI
+from gui import EANMGUI
 
 
 def main():

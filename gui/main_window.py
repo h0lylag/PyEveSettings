@@ -7,8 +7,10 @@ from tkinter import ttk, messagebox, filedialog, simpledialog
 import threading
 from typing import Optional, List, Dict
 from pathlib import Path
-from ..core import SettingsManager
-from ..models import SettingFile
+from utils.core import SettingsManager
+from utils.models import (SettingFile, get_character_note, set_character_note, 
+                          get_account_note, set_account_note,
+                          get_all_character_notes, get_all_account_notes)
 
 
 class EANMGUI:
@@ -26,10 +28,6 @@ class EANMGUI:
         self.all_user_list: List[SettingFile] = []
         self.loading = True
         self.selected_folder: Optional[Path] = None
-        
-        # Notes storage (character_id -> note)
-        self.char_notes: Dict[int, str] = {}
-        self.user_notes: Dict[int, str] = {}
         
         # Create GUI first (before loading data)
         self.create_widgets()
@@ -321,7 +319,7 @@ class EANMGUI:
             date_str = datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M')
             
             # Get note
-            note = self.char_notes.get(char.id, "")
+            note = get_character_note(char.id)
             
             # Insert with char object as tag for reference
             self.chars_tree.insert('', 'end', 
@@ -337,7 +335,7 @@ class EANMGUI:
             date_str = datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M')
             
             # Get note
-            note = self.user_notes.get(user.id, "")
+            note = get_account_note(user.id)
             
             # Insert with user object as tag for reference
             self.accounts_tree.insert('', 'end',
@@ -370,7 +368,7 @@ class EANMGUI:
         if not char:
             return
         
-        current_note = self.char_notes.get(char.id, "")
+        current_note = get_character_note(char.id)
         new_note = simpledialog.askstring(
             "Edit Character Note",
             f"Enter note for {char_name} (max 20 characters):",
@@ -380,7 +378,7 @@ class EANMGUI:
         
         if new_note is not None:  # Not cancelled
             new_note = new_note[:20]  # Limit to 20 chars
-            self.char_notes[char.id] = new_note
+            set_character_note(char.id, new_note)
             self.update_character_lists()
     
     def edit_account_note(self):
@@ -400,7 +398,7 @@ class EANMGUI:
         if not user:
             return
         
-        current_note = self.user_notes.get(user.id, "")
+        current_note = get_account_note(user.id)
         new_note = simpledialog.askstring(
             "Edit Account Note",
             f"Enter note for account {user_id} (max 20 characters):",
@@ -410,7 +408,7 @@ class EANMGUI:
         
         if new_note is not None:  # Not cancelled
             new_note = new_note[:20]  # Limit to 20 chars
-            self.user_notes[user.id] = new_note
+            set_account_note(user.id, new_note)
             self.update_character_lists()
     
     def char_overwrite_all(self):
@@ -540,7 +538,7 @@ class EANMGUI:
             if char.id != char_id:  # Skip source
                 mtime = char.path.stat().st_mtime
                 date_str = datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M')
-                note = self.char_notes.get(char.id, "")
+                note = get_character_note(char.id)
                 
                 tree.insert('', 'end', text='☐',
                            values=(char.id, char.get_char_name(), date_str, note),
@@ -672,7 +670,7 @@ class EANMGUI:
             if user.id != user_id:  # Skip source
                 mtime = user.path.stat().st_mtime
                 date_str = datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M')
-                note = self.user_notes.get(user.id, "")
+                note = get_account_note(user.id)
                 
                 tree.insert('', 'end', text='☐',
                            values=(user.id, date_str, note),
