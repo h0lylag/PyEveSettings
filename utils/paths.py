@@ -2,7 +2,7 @@
 
 import os
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Dict
 from .platform_detector import Platform, detect_platform
 from .exceptions import SettingsNotFoundError, PlatformNotSupportedError
 
@@ -10,23 +10,118 @@ from .exceptions import SettingsNotFoundError, PlatformNotSupportedError
 class EVEPathResolver:
     """Resolves paths to EVE Online installation and settings folders."""
     
-    def __init__(self):
-        """Initialize the path resolver."""
+    def __init__(self, server: Optional[str] = None):
+        """Initialize the path resolver.
+        
+        Args:
+            server: Server name (e.g., 'tranquility', 'singularity'). If None, defaults to tranquility.
+        """
         self.platform = detect_platform()
+        self.server = server or 'tranquility'
     
-    def get_base_path(self) -> Optional[Path]:
-        """Get the EVE base path for settings storage.
+    def discover_servers(self) -> Dict[str, str]:
+        """Discover all available EVE servers.
         
         Returns:
-            Path to EVE settings base directory, or None if not found.
+            Dictionary mapping display names to server folder names.
+            Example: {'Tranquility': 'c_ccp_eve_tq_tranquility', 'Singularity': 'c_ccp_eve_sisi_singularity'}
+        """
+        servers = {}
+        base_dir = self._get_eve_base_directory()
+        
+        if not base_dir or not base_dir.exists():
+            return servers
+        
+        try:
+            for item in base_dir.iterdir():
+                if item.is_dir() and item.name.startswith('c_ccp_eve_'):
+                    # Extract server name from folder (e.g., c_ccp_eve_tq_tranquility -> tranquility)
+                    parts = item.name.split('_')
+                    if len(parts) >= 4:
+                        # Get the last part as the server name
+                        server_name = parts[-1]
+                        # Capitalize for display
+                        display_name = server_name.capitalize()
+                        servers[display_name] = item.name
+        except PermissionError:
+            print(f"Warning: Permission denied accessing {base_dir}")
+        
+        return servers
+    
+    def _get_eve_base_directory(self) -> Optional[Path]:
+        """Get the base EVE directory containing server folders.
+        
+        Returns:
+            Path to EVE base directory (one level above server folders), or None if not found.
+        """
+        if self.platform == Platform.WINDOWS:
+            username = os.environ.get('USERNAME') or os.environ.get('USER')
+            if not username:
+                return None
+            return Path(f"C:/Users/{username}/AppData/Local/CCP/EVE")
+        
+        elif self.platform == Platform.LINUX:
+            username = os.environ.get('USER')
+            if not username:
+                return None
+            
+            # Try Steam Proton path first (most common)
+            steam_path = Path(f"/home/{username}/.steam/steam/steamapps/compatdata/8500/pfx/drive_c/users/steamuser/AppData/Local/CCP/EVE")
+            if steam_path.exists():
+                return steam_path
+            
+            # Try Wine path as fallback
+            wine_path = Path.home() / ".eve/wineenv/drive_c/users" / username / "Local Settings/Application Data/CCP/EVE"
+            if wine_path.exists():
+                return wine_path
+        
+        return None
+    
+    def get_server_folder_name(self, server: Optional[str] = None) -> str:
+        """Get the folder name for a specific server.
+        
+        Args:
+            server: Server name (e.g., 'tranquility', 'singularity'). If None, uses self.server.
+            
+        Returns:
+            Folder name for the server (e.g., 'c_ccp_eve_tq_tranquility').
+        """
+        server_name = (server or self.server).lower()
+        
+        # Try to find the exact folder name from discovered servers
+        servers = self.discover_servers()
+        for display_name, folder_name in servers.items():
+            if display_name.lower() == server_name:
+                return folder_name
+        
+        # Fallback to constructed name
+        # Map common server names to their abbreviations
+        server_map = {
+            'tranquility': 'tq_tranquility',
+            'singularity': 'sisi_singularity',
+            'duality': 'duality',
+            'serenity': 'serenity'
+        }
+        
+        server_suffix = server_map.get(server_name, server_name)
+        return f'c_ccp_eve_{server_suffix}'
+    
+    def get_base_path(self, server: Optional[str] = None) -> Optional[Path]:
+        """Get the EVE base path for settings storage for a specific server.
+        
+        Args:
+            server: Server name (e.g., 'tranquility', 'singularity'). If None, uses self.server.
+        
+        Returns:
+            Path to EVE settings base directory for the server, or None if not found.
             
         Raises:
             PlatformNotSupportedError: If the current platform is not supported.
         """
         if self.platform == Platform.WINDOWS:
-            return self._get_windows_path()
+            return self._get_windows_path(server)
         elif self.platform == Platform.LINUX:
-            return self._get_linux_path()
+            return self._get_linux_path(server)
         elif self.platform == Platform.MACOS:
             raise PlatformNotSupportedError(
                 "macOS is not yet supported. Please use Windows or Linux."
@@ -36,8 +131,11 @@ class EVEPathResolver:
                 f"Unknown or unsupported platform: {self.platform}"
             )
     
-    def _get_windows_path(self) -> Optional[Path]:
-        """Get Windows EVE path.
+    def _get_windows_path(self, server: Optional[str] = None) -> Optional[Path]:
+        """Get Windows EVE path for a specific server.
+        
+        Args:
+            server: Server name. If None, uses self.server.
         
         Returns:
             Path to Windows EVE settings directory, or None if not found.
@@ -46,13 +144,17 @@ class EVEPathResolver:
         if not username:
             return None
         
-        eve_base = Path(f"C:/Users/{username}/AppData/Local/CCP/EVE/c_ccp_eve_tq_tranquility")
+        server_folder = self.get_server_folder_name(server)
+        eve_base = Path(f"C:/Users/{username}/AppData/Local/CCP/EVE/{server_folder}")
         if eve_base.exists():
             return eve_base
         return None
     
-    def _get_linux_path(self) -> Optional[Path]:
-        """Get Linux Steam EVE path.
+    def _get_linux_path(self, server: Optional[str] = None) -> Optional[Path]:
+        """Get Linux Steam EVE path for a specific server.
+        
+        Args:
+            server: Server name. If None, uses self.server.
         
         Returns:
             Path to Linux Steam EVE settings directory, or None if not found.
@@ -61,13 +163,15 @@ class EVEPathResolver:
         if not username:
             return None
         
+        server_folder = self.get_server_folder_name(server)
+        
         # Try Steam Proton path first (most common)
-        steam_path = Path(f"/home/{username}/.steam/steam/steamapps/compatdata/8500/pfx/drive_c/users/steamuser/AppData/Local/CCP/EVE/c_ccp_eve_tq_tranquility")
+        steam_path = Path(f"/home/{username}/.steam/steam/steamapps/compatdata/8500/pfx/drive_c/users/steamuser/AppData/Local/CCP/EVE/{server_folder}")
         if steam_path.exists():
             return steam_path
         
         # Try Wine path as fallback
-        wine_path = Path.home() / ".eve/wineenv/drive_c/users" / username / "Local Settings/Application Data/CCP/EVE/c_tq_tranquility"
+        wine_path = Path.home() / ".eve/wineenv/drive_c/users" / username / "Local Settings/Application Data/CCP/EVE" / server_folder
         if wine_path.exists():
             return wine_path
         
