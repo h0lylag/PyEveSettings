@@ -100,6 +100,14 @@ BACKUP_FOLDER_NAME = "backups"
 BACKUP_FILE_EXTENSION = ".zip"
 BACKUP_TIMESTAMP_FORMAT = "%Y%m%d_%H%M%S"
 
+# Backup manager window
+BACKUP_MANAGER_WINDOW_WIDTH = 1400
+BACKUP_MANAGER_WINDOW_HEIGHT = 800
+
+# Restore backup dialog
+RESTORE_DIALOG_WIDTH = 800
+RESTORE_DIALOG_HEIGHT = 400
+
 
 # =============================================================================
 # Background Task Settings
