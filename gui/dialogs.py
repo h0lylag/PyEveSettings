@@ -71,8 +71,8 @@ def show_character_selection_dialog(parent, source_char: SettingFile, all_chars:
                        tags=(str(char.id),))
             target_chars.append(char)
     
-    # Sort by date initially
-    sort_tree(tree, 'date', False)
+    # Sort by date initially - most recent first
+    sort_tree(tree, 'date', True)
     
     # Toggle selection on click
     def toggle_selection(event):
@@ -176,8 +176,8 @@ def show_account_selection_dialog(parent, source_user: SettingFile, all_users: L
                        tags=(str(user.id),))
             target_users.append(user)
     
-    # Sort by date initially
-    sort_tree(tree, 'date', False)
+    # Sort by date initially - most recent first
+    sort_tree(tree, 'date', True)
     
     # Toggle selection on click
     def toggle_selection(event):

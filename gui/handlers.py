@@ -126,9 +126,9 @@ class EventHandlers:
         self.app.manager.char_list = filtered_chars
         self.app.manager.user_list = filtered_users
         
-        # Sort by date (default)
-        sort_tree(self.app.chars_tree, 'date', False)
-        sort_tree(self.app.accounts_tree, 'date', False)
+        # Sort by date (default) - most recent first
+        sort_tree(self.app.chars_tree, 'date', True)
+        sort_tree(self.app.accounts_tree, 'date', True)
     
     def edit_char_note(self):
         """Edit note for selected character"""
