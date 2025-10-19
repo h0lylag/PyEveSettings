@@ -119,9 +119,20 @@ class PyEveSettingsGUI:
             invalid_ids = {int(i) for i in self.data_file.get_invalid_ids()}
             self.api_cache.load_cache(char_names, invalid_ids)
             
+            # Initialize path resolver (without server initially)
+            self.path_resolver = EVEPathResolver()
+            
+            # Discover available servers
+            self.available_servers = self.path_resolver.discover_servers()
+            
+            # Set default server (first discovered or tranquility)
+            if self.available_servers:
+                self.current_server = list(self.available_servers.keys())[0]
+            else:
+                self.current_server = 'Tranquility'
+            
             # Initialize settings manager with dependencies
-            path_resolver = EVEPathResolver()
-            self.manager = SettingsManager(path_resolver, self.api_cache)
+            self.manager = SettingsManager(self.path_resolver, self.api_cache)
         except PlatformNotSupportedError as e:
             messagebox.showerror(
                 "Platform Not Supported",
@@ -143,6 +154,8 @@ class PyEveSettingsGUI:
         widgets = create_main_layout(self.root)
         
         # Store widget references
+        self.server_var = widgets['server_var']
+        self.server_combo = widgets['server_combo']
         self.status_label = widgets['status_label']
         self.path_var = widgets['path_var']
         self.path_entry = widgets['path_entry']
@@ -158,6 +171,14 @@ class PyEveSettingsGUI:
         """Connect event handlers to GUI widgets."""
         # Initialize event handlers
         self.handlers = EventHandlers(self)
+        
+        # Populate server dropdown and set current selection
+        server_names = sorted(self.available_servers.keys()) if self.available_servers else ['Tranquility']
+        self.server_combo['values'] = server_names
+        self.server_var.set(self.current_server)
+        
+        # Connect server selection handler
+        self.server_combo.bind('<<ComboboxSelected>>', self._on_server_changed)
         
         # Connect event handlers to widgets
         self.profiles_listbox.bind('<<ListboxSelect>>', self.handlers.on_profile_selected)
@@ -205,6 +226,35 @@ class PyEveSettingsGUI:
         self.data_file.save()
         
         self.resize_timer = None
+    
+    def _on_server_changed(self, event: Optional[tk.Event] = None) -> None:
+        """Handle server selection change.
+        
+        Args:
+            event: The combobox selection event.
+        """
+        selected_server = self.server_var.get()
+        if selected_server and selected_server != self.current_server:
+            self.current_server = selected_server
+            
+            # Update path resolver with new server
+            server_name_lower = selected_server.lower()
+            self.path_resolver.server = server_name_lower
+            
+            # Reload data for the new server
+            self.status_label.config(text=f"Switching to {selected_server} server...", foreground="blue")
+            self.progress.grid()  # Show progress bar
+            self.progress.start(10)
+            
+            # Clear current data
+            self.profiles_listbox.delete(0, tk.END)
+            self.chars_tree.delete(*self.chars_tree.get_children())
+            self.accounts_tree.delete(*self.accounts_tree.get_children())
+            self.path_var.set("")
+            
+            # Reload in background
+            self.loading = True
+            self.root.after(100, self.start_loading_data)
     
     def start_loading_data(self) -> None:
         """Start loading data in a background thread."""
