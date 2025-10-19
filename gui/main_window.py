@@ -1,52 +1,92 @@
-"""
-Main GUI window for py-eve-settings
-"""
+"""Main GUI window for py-eve-settings."""
 
 import tkinter as tk
 from tkinter import ttk, messagebox
 import threading
 from typing import Optional, List
 from pathlib import Path
+
+from data import DataFile, WindowSettings, NotesManager
+from api import APICache, ESIClient
+from platform_utils import EVEPathResolver
 from utils.core import SettingsManager
-from utils.models import SettingFile, get_window_settings, set_window_settings
+from utils.models import SettingFile
 from .widgets import create_main_layout
 from .handlers import EventHandlers
 from .helpers import center_window, sort_tree
 
 
 class PyEveSettingsGUI:
-    """Main GUI application for py-eve-settings"""
+    """Main GUI application for py-eve-settings."""
     
     def __init__(self):
+        """Initialize the PyEveSettings GUI application."""
         self.root = tk.Tk()
         self.root.title("PyEveSettings")
         
-        # Load saved window settings from cache
-        SettingFile.load_cache()  # Ensure cache is loaded
-        settings = get_window_settings()
-        
-        # Apply window size and position
-        width = settings['width']
-        height = settings['height']
-        x_pos = settings['x_pos']
-        y_pos = settings['y_pos']
-        
-        if x_pos is not None and y_pos is not None:
-            # Use saved position
-            self.root.geometry(f"{width}x{height}+{x_pos}+{y_pos}")
-        else:
-            # No saved position, just set size (will be centered later)
-            self.root.geometry(f"{width}x{height}")
-        
-        # Initialize settings manager
-        self.manager = SettingsManager()
+        # Initialize state variables
         self.settings_folders: List[Path] = []
         self.all_char_list: List[SettingFile] = []
         self.all_user_list: List[SettingFile] = []
         self.loading = True
         self.selected_folder: Optional[Path] = None
+        self.resize_timer: Optional[str] = None
         
-        # Create GUI and get widget references
+        # Initialize application layers
+        self._init_data_layer()
+        self._init_managers()
+        self._apply_window_geometry()
+        self._init_gui()
+        self._setup_event_handlers()
+        
+        # Center window only if no saved position
+        if self.window_settings.should_center():
+            center_window(self.root)
+        
+        # Start loading data in background
+        self.root.after(100, self.start_loading_data)
+    
+    def _init_data_layer(self) -> None:
+        """Initialize data persistence layer."""
+        self.data_file = DataFile()
+        data = self.data_file.load()
+        
+        # Initialize window settings
+        self.window_settings = WindowSettings.from_dict(
+            self.data_file.get_window_settings()
+        )
+        
+        # Initialize notes manager
+        self.notes_manager = NotesManager()
+        self.notes_manager.load_from_dict(
+            self.data_file.get_character_notes(),
+            self.data_file.get_account_notes()
+        )
+    
+    def _init_managers(self) -> None:
+        """Initialize API cache and settings manager."""
+        # Initialize API cache
+        self.api_cache = APICache(ESIClient())
+        # Convert string keys to int for cache loading
+        char_names = {int(k): v for k, v in self.data_file.get_character_names().items()}
+        invalid_ids = {int(i) for i in self.data_file.get_invalid_ids()}
+        self.api_cache.load_cache(char_names, invalid_ids)
+        
+        # Initialize settings manager with dependencies
+        path_resolver = EVEPathResolver()
+        self.manager = SettingsManager(path_resolver, self.api_cache)
+    
+    def _apply_window_geometry(self) -> None:
+        """Apply saved window geometry or default size."""
+        if not self.window_settings.should_center():
+            # Use saved position
+            self.root.geometry(self.window_settings.get_geometry_string())
+        else:
+            # No saved position, just set size (will be centered later)
+            self.root.geometry(f"{self.window_settings.width}x{self.window_settings.height}")
+    
+    def _init_gui(self) -> None:
+        """Initialize GUI widgets and layout."""
         widgets = create_main_layout(self.root)
         
         # Store widget references
@@ -58,33 +98,33 @@ class PyEveSettingsGUI:
         self.chars_tree = widgets['chars_tree']
         self.accounts_tree = widgets['accounts_tree']
         
+        # Store button widgets for event handler binding
+        self._widgets = widgets
+    
+    def _setup_event_handlers(self) -> None:
+        """Connect event handlers to GUI widgets."""
         # Initialize event handlers
         self.handlers = EventHandlers(self)
         
         # Connect event handlers to widgets
         self.profiles_listbox.bind('<<ListboxSelect>>', self.handlers.on_profile_selected)
-        widgets['char_edit_btn'].config(command=self.handlers.edit_char_note)
-        widgets['char_overwrite_all_btn'].config(command=self.handlers.char_overwrite_all)
-        widgets['char_overwrite_select_btn'].config(command=self.handlers.char_overwrite_select)
-        widgets['account_edit_btn'].config(command=self.handlers.edit_account_note)
-        widgets['account_overwrite_all_btn'].config(command=self.handlers.account_overwrite_all)
-        widgets['account_overwrite_select_btn'].config(command=self.handlers.account_overwrite_select)
+        self._widgets['char_edit_btn'].config(command=self.handlers.edit_char_note)
+        self._widgets['char_overwrite_all_btn'].config(command=self.handlers.char_overwrite_all)
+        self._widgets['char_overwrite_select_btn'].config(command=self.handlers.char_overwrite_select)
+        self._widgets['account_edit_btn'].config(command=self.handlers.edit_account_note)
+        self._widgets['account_overwrite_all_btn'].config(command=self.handlers.account_overwrite_all)
+        self._widgets['account_overwrite_select_btn'].config(command=self.handlers.account_overwrite_select)
         
         # Bind window resize/move event to save settings
-        self.root.bind('<Configure>', self.on_window_configure)
-        self.resize_timer = None  # Timer to debounce resize/move events
-        
-        # Center window only if no saved position
-        if x_pos is None or y_pos is None:
-            center_window(self.root)
-        
-        # Start loading data in background
-        self.root.after(100, self.start_loading_data)
+        self.root.bind('<Configure>', self._handle_window_configure)
     
-    def on_window_configure(self, event):
-        """
-        Handle window resize and move events and save the new settings
-        Uses a timer to debounce rapid configure events
+    def _handle_window_configure(self, event: tk.Event) -> None:
+        """Handle window resize and move events and save the new settings.
+        
+        Uses a timer to debounce rapid configure events.
+        
+        Args:
+            event: The configure event from tkinter.
         """
         # Only handle configure events from the root window, not child widgets
         if event.widget != self.root:
@@ -95,37 +135,53 @@ class PyEveSettingsGUI:
             self.root.after_cancel(self.resize_timer)
         
         # Set a new timer to save the size after 500ms of no resizing
-        self.resize_timer = self.root.after(500, self.save_window_settings)
+        self.resize_timer = self.root.after(500, self._save_window_state)
     
-    def save_window_settings(self):
-        """Save the current window size and position to cache"""
+    def _save_window_state(self) -> None:
+        """Save the current window size and position."""
         width = self.root.winfo_width()
         height = self.root.winfo_height()
         x_pos = self.root.winfo_x()
         y_pos = self.root.winfo_y()
         
-        # Save window settings (size and position)
-        set_window_settings(width, height, x_pos, y_pos)
+        # Update window settings object
+        self.window_settings.update(width, height, x_pos, y_pos)
+        
+        # Save to data file
+        self.data_file.set_window_settings(width, height, x_pos, y_pos)
+        self.data_file.save()
+        
         self.resize_timer = None
     
-    def start_loading_data(self):
-        """Start loading data in a background thread"""
+    def start_loading_data(self) -> None:
+        """Start loading data in a background thread."""
         thread = threading.Thread(target=self.load_data_thread, daemon=True)
         thread.start()
         self.root.after(100, self.check_loading_status)
     
-    def load_data_thread(self):
-        """Load data in background thread"""
+    def load_data_thread(self) -> None:
+        """Load data in background thread."""
         try:
             # Find settings directories
-            self.settings_folders = self.manager.find_settings_directories()
+            self.settings_folders = self.manager.discover_settings_folders()
             
             if not self.settings_folders:
                 self.loading = False
                 return
             
-            # Load settings files (this calls the API)
-            self.manager.load_files(self.settings_folders)
+            # Load settings files and get character IDs that need fetching
+            character_ids = self.manager.load_files(self.settings_folders)
+            
+            # Fetch character names in bulk if needed
+            if character_ids:
+                self.api_cache.fetch_names_bulk(character_ids)
+                
+                # Save updated cache to disk
+                for char_id, name in self.api_cache.get_all_cached().items():
+                    self.data_file.save_character_name(str(char_id), name)
+                for invalid_id in self.api_cache.get_all_invalid():
+                    self.data_file.add_invalid_id(str(invalid_id))
+                self.data_file.save()
             
             # Store full lists for filtering
             self.all_char_list = self.manager.char_list.copy()
@@ -140,17 +196,19 @@ class PyEveSettingsGUI:
             
         except Exception as e:
             print(f"Error loading data: {e}")
+            import traceback
+            traceback.print_exc()
             self.loading = False
     
-    def check_loading_status(self):
-        """Check if data loading is complete and update UI"""
+    def check_loading_status(self) -> None:
+        """Check if data loading is complete and update UI."""
         if self.loading:
             self.root.after(100, self.check_loading_status)
         else:
             self.on_loading_complete()
     
-    def on_loading_complete(self):
-        """Called when data loading is complete"""
+    def on_loading_complete(self) -> None:
+        """Called when data loading is complete."""
         self.progress.stop()
         self.progress.grid_remove()
         
@@ -197,6 +255,6 @@ class PyEveSettingsGUI:
         self.selected_folder = self.settings_folders[0]
         self.handlers.update_character_lists()
     
-    def run(self):
-        """Start the GUI application"""
+    def run(self) -> None:
+        """Start the GUI application."""
         self.root.mainloop()

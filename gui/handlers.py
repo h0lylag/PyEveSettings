@@ -1,27 +1,34 @@
-"""
-Event handlers for py-eve-settings GUI
-"""
+"""Event handlers for py-eve-settings GUI."""
 
 import tkinter as tk
 from tkinter import messagebox, filedialog, simpledialog
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 from pathlib import Path
 from datetime import datetime
-from utils.models import (get_character_note, set_character_note, 
-                          get_account_note, set_account_note, is_character_valid)
 from .dialogs import show_character_selection_dialog, show_account_selection_dialog
 from .helpers import sort_tree
 
+if TYPE_CHECKING:
+    from .main_window import PyEveSettingsGUI
+
 
 class EventHandlers:
-    """Handles all GUI events and actions"""
+    """Handles all GUI events and actions."""
     
-    def __init__(self, app):
-        """Initialize with reference to main app"""
+    def __init__(self, app: 'PyEveSettingsGUI'):
+        """Initialize with reference to main app.
+        
+        Args:
+            app: The main PyEveSettingsGUI application instance.
+        """
         self.app = app
     
-    def on_profile_selected(self, event=None):
-        """Handle profile selection change"""
+    def on_profile_selected(self, event: Optional[tk.Event] = None) -> None:
+        """Handle profile selection change.
+        
+        Args:
+            event: The selection event (unused, but required by tkinter).
+        """
         selection = self.app.profiles_listbox.curselection()
         if not selection:
             return
@@ -39,8 +46,8 @@ class EventHandlers:
                     break
             self.update_character_lists()
     
-    def select_custom_folder(self):
-        """Browse for a custom settings folder"""
+    def select_custom_folder(self) -> None:
+        """Browse for a custom settings folder."""
         folder_path = filedialog.askdirectory(
             title="Select EVE Settings Folder",
             mustexist=True
@@ -55,7 +62,7 @@ class EventHandlers:
         custom_folder = Path(folder_path)
         
         # Verify it has settings files
-        if not self.app.manager.has_settings_files(custom_folder):
+        if not self.app.manager.path_resolver.validate_settings_folder(custom_folder):
             messagebox.showerror(
                 "Invalid Folder",
                 "The selected folder does not contain EVE settings files!"
@@ -68,7 +75,15 @@ class EventHandlers:
         if custom_folder not in self.app.settings_folders:
             self.app.settings_folders.append(custom_folder)
             # Reload files to include new folder
-            self.app.manager.load_files(self.app.settings_folders)
+            character_ids = self.app.manager.load_files(self.app.settings_folders)
+            
+            # Fetch any new character names
+            if character_ids:
+                self.app.api_cache.fetch_names_bulk(character_ids)
+                for char_id, name in self.app.api_cache.get_all_cached().items():
+                    self.app.data_file.save_character_name(str(char_id), name)
+                self.app.data_file.save()
+            
             self.app.all_char_list = self.app.manager.char_list.copy()
             self.app.all_user_list = self.app.manager.user_list.copy()
             
@@ -80,8 +95,8 @@ class EventHandlers:
         self.app.selected_folder = custom_folder
         self.update_character_lists()
     
-    def update_character_lists(self):
-        """Update character and account lists based on selected profile"""
+    def update_character_lists(self) -> None:
+        """Update character and account lists based on selected profile."""
         # Update path display
         if self.app.selected_folder:
             self.app.path_var.set(str(self.app.selected_folder))
@@ -100,12 +115,12 @@ class EventHandlers:
         self.app.chars_tree.delete(*self.app.chars_tree.get_children())
         for char in filtered_chars:
             # Skip invalid characters
-            if not is_character_valid(char.id):
+            if self.app.api_cache.is_invalid(char.id):
                 continue
             
             mtime = char.path.stat().st_mtime
             date_str = datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M:%S')
-            note = get_character_note(char.id)
+            note = self.app.notes_manager.get_character_note(str(char.id))
             
             self.app.chars_tree.insert('', 'end', 
                                       values=(char.id, char.get_char_name(), date_str, note),
@@ -116,7 +131,7 @@ class EventHandlers:
         for user in filtered_users:
             mtime = user.path.stat().st_mtime
             date_str = datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M:%S')
-            note = get_account_note(user.id)
+            note = self.app.notes_manager.get_account_note(str(user.id))
             
             self.app.accounts_tree.insert('', 'end',
                                          values=(user.id, date_str, note),
@@ -130,8 +145,8 @@ class EventHandlers:
         sort_tree(self.app.chars_tree, 'date', True)
         sort_tree(self.app.accounts_tree, 'date', True)
     
-    def edit_char_note(self):
-        """Edit note for selected character"""
+    def edit_char_note(self) -> None:
+        """Edit note for selected character."""
         selection = self.app.chars_tree.selection()
         if not selection:
             messagebox.showwarning("No Selection", "Please select a character first.")
@@ -146,7 +161,7 @@ class EventHandlers:
         if not char:
             return
         
-        current_note = get_character_note(char.id)
+        current_note = self.app.notes_manager.get_character_note(str(char.id))
         new_note = simpledialog.askstring(
             "Edit Character Note",
             f"Enter note for {char_name} (max 20 characters):",
@@ -156,11 +171,13 @@ class EventHandlers:
         
         if new_note is not None:
             new_note = new_note[:20]
-            set_character_note(char.id, new_note)
+            self.app.notes_manager.set_character_note(str(char.id), new_note)
+            self.app.data_file.set_character_note(str(char.id), new_note)
+            self.app.data_file.save()
             self.update_character_lists()
     
-    def edit_account_note(self):
-        """Edit note for selected account"""
+    def edit_account_note(self) -> None:
+        """Edit note for selected account."""
         selection = self.app.accounts_tree.selection()
         if not selection:
             messagebox.showwarning("No Selection", "Please select an account first.")
@@ -174,7 +191,7 @@ class EventHandlers:
         if not user:
             return
         
-        current_note = get_account_note(user.id)
+        current_note = self.app.notes_manager.get_account_note(str(user.id))
         new_note = simpledialog.askstring(
             "Edit Account Note",
             f"Enter note for account {user_id} (max 20 characters):",
@@ -184,11 +201,13 @@ class EventHandlers:
         
         if new_note is not None:
             new_note = new_note[:20]
-            set_account_note(user.id, new_note)
+            self.app.notes_manager.set_account_note(str(user.id), new_note)
+            self.app.data_file.set_account_note(str(user.id), new_note)
+            self.app.data_file.save()
             self.update_character_lists()
     
-    def char_overwrite_all(self):
-        """Overwrite settings to all characters in current profile"""
+    def char_overwrite_all(self) -> None:
+        """Overwrite settings to all characters in current profile."""
         selection = self.app.chars_tree.selection()
         if not selection:
             messagebox.showwarning("No Selection", "Please select a source character first.")
@@ -213,8 +232,8 @@ class EventHandlers:
             total_copied = self.app.manager.copy_settings(source_char)
             messagebox.showinfo("Success", f"Settings copied to {total_copied} file(s)!")
     
-    def account_overwrite_all(self):
-        """Overwrite settings to all accounts in current profile"""
+    def account_overwrite_all(self) -> None:
+        """Overwrite settings to all accounts in current profile."""
         selection = self.app.accounts_tree.selection()
         if not selection:
             messagebox.showwarning("No Selection", "Please select a source account first.")
@@ -238,8 +257,8 @@ class EventHandlers:
             total_copied = self.app.manager.copy_settings(source_user)
             messagebox.showinfo("Success", f"Settings copied to {total_copied} file(s)!")
     
-    def char_overwrite_select(self):
-        """Select specific characters to overwrite"""
+    def char_overwrite_select(self) -> None:
+        """Select specific characters to overwrite."""
         selection = self.app.chars_tree.selection()
         if not selection:
             messagebox.showwarning("No Selection", "Please select a source character first.")
@@ -258,11 +277,12 @@ class EventHandlers:
             source_char, 
             self.app.manager.char_list,
             self.app.manager,
-            sort_tree
+            sort_tree,
+            self.app.notes_manager
         )
     
-    def account_overwrite_select(self):
-        """Select specific accounts to overwrite"""
+    def account_overwrite_select(self) -> None:
+        """Select specific accounts to overwrite."""
         selection = self.app.accounts_tree.selection()
         if not selection:
             messagebox.showwarning("No Selection", "Please select a source account first.")
@@ -281,5 +301,6 @@ class EventHandlers:
             source_user,
             self.app.manager.user_list,
             self.app.manager,
-            sort_tree
+            sort_tree,
+            self.app.notes_manager
         )

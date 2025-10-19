@@ -1,119 +1,70 @@
-"""
-Core business logic for EVE settings management
-"""
+"""Core business logic for EVE settings management."""
 
-import os
 import shutil
-import platform
 from pathlib import Path
 from typing import List, Dict, Optional
+
+from platform_utils import EVEPathResolver
 from .models import SettingFile
 
 
-def get_operating_system() -> str:
-    """
-    Determine the current operating system
-    
-    Returns:
-        'windows' or 'linux'
-    """
-    system = platform.system().lower()
-    if system == 'windows':
-        return 'windows'
-    elif system == 'linux':
-        return 'linux'
-    else:
-        # Default to linux for other Unix-like systems
-        return 'linux'
-
-
-def get_eve_base_path() -> Optional[Path]:
-    """
-    Get the EVE base path based on the operating system
-    
-    Returns:
-        Path to EVE base directory or None if not found
-    """
-    os_type = get_operating_system()
-    
-    if os_type == 'windows':
-        # Windows default path
-        username = os.environ.get('USERNAME') or os.environ.get('USER')
-        if username:
-            eve_base = Path(f"C:/Users/{username}/AppData/Local/CCP/EVE/c_ccp_eve_tq_tranquility")
-            if eve_base.exists():
-                return eve_base
-    
-    elif os_type == 'linux':
-        # Linux Steam path
-        username = os.environ.get('USER')
-        if username:
-            eve_base = Path(f"/home/{username}/.steam/steam/steamapps/compatdata/8500/pfx/drive_c/users/steamuser/AppData/Local/CCP/EVE/c_ccp_eve_tq_tranquility")
-            if eve_base.exists():
-                return eve_base
-    
-    return None
-
-
 class SettingsManager:
-    """Manages EVE settings files detection and operations"""
+    """Manages EVE settings files detection and operations."""
     
-    def __init__(self):
+    def __init__(self, path_resolver: Optional[EVEPathResolver] = None, api_cache=None):
+        """Initialize the settings manager.
+        
+        Args:
+            path_resolver: Path resolver instance. If None, creates a new one.
+            api_cache: API cache instance for character name resolution.
+        """
+        self.path_resolver = path_resolver or EVEPathResolver()
+        self.api_cache = api_cache
         self.settings_folders: List[Path] = []
         self.char_list: List[SettingFile] = []
         self.user_list: List[SettingFile] = []
         self.file_to_folder: Dict[Path, Path] = {}
     
-    def find_settings_directories(self) -> List[Path]:
-        """
-        Find EVE settings directories
+    def discover_settings_folders(self) -> List[Path]:
+        """Discover EVE settings directories.
+        
         Checks:
         1. Current directory (if it contains profile files)
-        2. Default EVE location (OS-specific) with subdirectories (settings_Default, settings_Mining, etc.)
+        2. Default EVE location with subdirectories (settings_Default, settings_Mining, etc.)
+        
+        Returns:
+            List of paths to settings folders.
         """
         settings_dirs = []
         
         # Check current directory first
         cwd = Path.cwd()
-        if self.has_settings_files(cwd):
+        if self.path_resolver.validate_settings_folder(cwd):
             settings_dirs.append(cwd)
             return settings_dirs  # If current dir has files, use only that
         
-        # Check default EVE location using OS-specific path
-        eve_base = get_eve_base_path()
+        # Check default EVE location
+        eve_base = self.path_resolver.get_base_path()
         
         if eve_base and eve_base.exists():
-            # Look for settings_* subdirectories
-            for subdir in eve_base.iterdir():
-                if subdir.is_dir() and subdir.name.startswith('settings_'):
-                    if self.has_settings_files(subdir):
-                        settings_dirs.append(subdir)
+            # Use path resolver to find settings folders
+            settings_dirs = self.path_resolver.find_settings_folders(eve_base)
         
         return settings_dirs
     
-    def has_settings_files(self, directory: Path) -> bool:
-        """Check if a directory contains EVE settings files"""
-        if not directory.exists() or not directory.is_dir():
-            return False
-        
-        has_char = False
-        has_user = False
-        
-        for file_path in directory.iterdir():
-            if file_path.is_file():
-                name = file_path.name
-                if name.startswith("core_char_") and not name.startswith("core_char__"):
-                    has_char = True
-                if name.startswith("core_user_") and not name.startswith("core_user__"):
-                    has_user = True
-                
-                if has_char and has_user:
-                    return True
-        
-        return False
+    def find_settings_directories(self) -> List[Path]:
+        """Deprecated: Use discover_settings_folders() instead."""
+        return self.discover_settings_folders()
     
-    def load_files(self, settings_folders: List[Path]) -> None:
-        """Load and sort character and account settings files from all settings directories"""
+    def load_files(self, settings_folders: List[Path]) -> List[int]:
+        """Load and sort character and account settings files from all settings directories.
+        
+        Args:
+            settings_folders: List of paths to settings folders to load from.
+            
+        Returns:
+            List of character IDs that need names fetched.
+        """
         self.settings_folders = settings_folders
         self.char_list.clear()
         self.user_list.clear()
@@ -126,7 +77,7 @@ class SettingsManager:
         for settings_folder in settings_folders:
             for file_path in settings_folder.iterdir():
                 if file_path.is_file():
-                    setting_file = SettingFile(file_path)
+                    setting_file = SettingFile(file_path, api_cache=self.api_cache)
                     
                     if setting_file.is_char_file():
                         # Only add if ID is valid (non-zero and at least 7 digits)
@@ -138,24 +89,22 @@ class SettingsManager:
                         self.user_list.append(setting_file)
                         self.file_to_folder[setting_file.path] = settings_folder
         
-        # Fetch all character names in bulk (much more efficient!)
-        if character_ids:
-            SettingFile.fetch_character_names_bulk(character_ids)
-        
         # Sort by last modified (most recent first)
         self.char_list.sort(key=lambda f: f.last_modified(), reverse=True)
         self.user_list.sort(key=lambda f: f.last_modified(), reverse=True)
+        
+        return character_ids
     
-    def copy_settings(self, source_file: SettingFile) -> int:
-        """
-        Copy settings from source file to all other files of the same type
-        Only copies to files in the same settings folder
+    def copy_settings_to_targets(self, source_file: SettingFile) -> int:
+        """Copy settings from source file to all other files of the same type.
+        
+        Only copies to files in the same settings folder.
         
         Args:
-            source_file: The file to use as source for copying
+            source_file: The file to use as source for copying.
             
         Returns:
-            Number of files copied
+            Number of files copied.
         """
         # Get the appropriate list (char or user)
         file_list = self.char_list if source_file.is_char_file() else self.user_list
@@ -182,3 +131,7 @@ class SettingsManager:
                     raise
         
         return copied_count
+    
+    def copy_settings(self, source_file: SettingFile) -> int:
+        """Deprecated: Use copy_settings_to_targets() instead."""
+        return self.copy_settings_to_targets(source_file)
