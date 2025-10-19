@@ -29,11 +29,8 @@ def _create_selection_tree(
     Returns:
         Tuple of (treeview widget, scrollbar widget).
     """
-    tree = ttk.Treeview(parent, columns=columns, show='tree headings', selectmode='extended')
-    
-    # Configure checkbox column
-    tree.heading('#0', text='☐', anchor='w')
-    tree.column('#0', width=30, stretch=False)
+    # Use extended selectmode for Ctrl/Shift multi-select
+    tree = ttk.Treeview(parent, columns=columns, show='headings', selectmode='extended')
     
     # Configure data columns
     for i, (col, heading, width) in enumerate(zip(columns, headings, widths)):
@@ -47,25 +44,6 @@ def _create_selection_tree(
     tree.configure(yscrollcommand=scrollbar.set)
     
     return tree, scrollbar
-
-
-def _bind_toggle_selection(tree: ttk.Treeview) -> None:
-    """Bind click handler to toggle selection in treeview.
-    
-    Args:
-        tree: The treeview widget to bind to.
-    """
-    def toggle_selection(event: tk.Event) -> None:
-        item = tree.identify_row(event.y)
-        if item:
-            if tree.selection() and item in tree.selection():
-                tree.selection_remove(item)
-                tree.item(item, text='☐')
-            else:
-                tree.selection_add(item)
-                tree.item(item, text='☑')
-    
-    tree.bind('<Button-1>', toggle_selection)
 
 
 def show_character_selection_dialog(
@@ -99,10 +77,10 @@ def show_character_selection_dialog(
     main_container.pack(fill=tk.BOTH, expand=True)
     
     # Header
-    tk.Label(main_container, text=f"Source: {char_name}", 
-            font=("Segoe UI", 11, "bold")).pack(pady=(0, 5))
-    tk.Label(main_container, text="Select characters to receive settings:", 
-            font=("Segoe UI", 10)).pack(pady=(0, 10))
+    tk.Label(main_container, text=f"Copy From: {char_name}", 
+            font=("Segoe UI", 12, "bold"), foreground="#0066cc").pack(pady=(0, 5))
+    tk.Label(main_container, text="Select target characters (use Ctrl/Shift+Click for multiple):", 
+            font=("Segoe UI", 10)).pack(pady=(0, 5))
     
     # Treeview frame
     tree_frame = ttk.Frame(main_container)
@@ -115,7 +93,7 @@ def show_character_selection_dialog(
         tree_frame,
         columns=('id', 'name', 'date', 'note'),
         headings=('ID', 'Name', 'Last Modified', 'Note'),
-        widths=(100, 150, 140, 120),
+        widths=(100, 200, 150, 150),
         sort_tree_func=sort_tree_func
     )
     
@@ -127,16 +105,13 @@ def show_character_selection_dialog(
             date_str = datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M:%S')
             note = notes_manager.get_character_note(str(char.id)) if notes_manager else ""
             
-            tree.insert('', 'end', text='☐',
+            tree.insert('', 'end',
                        values=(char.id, char.get_char_name(), date_str, note),
                        tags=(str(char.id),))
             target_chars.append(char)
     
     # Sort by date initially - most recent first
     sort_tree(tree, 'date', True)
-    
-    # Bind toggle selection handler
-    _bind_toggle_selection(tree)
     
     # Button frame
     btn_frame = ttk.Frame(main_container)
@@ -152,6 +127,17 @@ def show_character_selection_dialog(
         selected_ids = [int(tree.item(sel, 'values')[0]) for sel in selections]
         targets = [c for c in target_chars if c.id in selected_ids]
         
+        # Build confirmation message with clear from/to lists
+        target_names = [c.get_char_name() for c in targets]
+        confirm_msg = f"Copy settings FROM:\n  • {char_name}\n\n"
+        confirm_msg += f"TO these {len(target_names)} character(s):\n"
+        for name in target_names:
+            confirm_msg += f"  • {name}\n"
+        confirm_msg += "\nThis will overwrite their current settings. Continue?"
+        
+        if not messagebox.askyesno("Confirm Overwrite", confirm_msg):
+            return
+        
         # Create temporary filtered list for copy operation
         original_list = manager.char_list
         manager.char_list = targets
@@ -164,8 +150,8 @@ def show_character_selection_dialog(
     ttk.Button(btn_frame, text="Copy to Selected", command=do_copy).pack(side=tk.LEFT, padx=5)
     ttk.Button(btn_frame, text="Cancel", command=dialog.destroy).pack(side=tk.LEFT, padx=5)
     
-    # Center dialog above main window
-    center_dialog(dialog, parent, 650, 450)
+    # Center dialog above main window - larger size
+    center_dialog(dialog, parent, 900, 650)
 
 
 def show_account_selection_dialog(
@@ -199,10 +185,10 @@ def show_account_selection_dialog(
     main_container.pack(fill=tk.BOTH, expand=True)
     
     # Header
-    tk.Label(main_container, text=f"Source: Account {user_id}", 
-            font=("Segoe UI", 11, "bold")).pack(pady=(0, 5))
-    tk.Label(main_container, text="Select accounts to receive settings:", 
-            font=("Segoe UI", 10)).pack(pady=(0, 10))
+    tk.Label(main_container, text=f"Copy From: Account {user_id}", 
+            font=("Segoe UI", 12, "bold"), foreground="#0066cc").pack(pady=(0, 5))
+    tk.Label(main_container, text="Select target accounts (use Ctrl/Shift+Click for multiple):", 
+            font=("Segoe UI", 10)).pack(pady=(0, 5))
     
     # Treeview frame
     tree_frame = ttk.Frame(main_container)
@@ -215,7 +201,7 @@ def show_account_selection_dialog(
         tree_frame,
         columns=('id', 'date', 'note'),
         headings=('ID', 'Last Modified', 'Note'),
-        widths=(100, 140, 120),
+        widths=(120, 180, 180),
         sort_tree_func=sort_tree_func
     )
     
@@ -227,16 +213,13 @@ def show_account_selection_dialog(
             date_str = datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M:%S')
             note = notes_manager.get_account_note(str(user.id)) if notes_manager else ""
             
-            tree.insert('', 'end', text='☐',
+            tree.insert('', 'end',
                        values=(user.id, date_str, note),
                        tags=(str(user.id),))
             target_users.append(user)
     
     # Sort by date initially - most recent first
     sort_tree(tree, 'date', True)
-    
-    # Bind toggle selection handler
-    _bind_toggle_selection(tree)
     
     # Button frame
     btn_frame = ttk.Frame(main_container)
@@ -252,6 +235,17 @@ def show_account_selection_dialog(
         selected_ids = [int(tree.item(sel, 'values')[0]) for sel in selections]
         targets = [u for u in target_users if u.id in selected_ids]
         
+        # Build confirmation message with clear from/to lists
+        target_ids = [str(u.id) for u in targets]
+        confirm_msg = f"Copy settings FROM:\n  • Account {user_id}\n\n"
+        confirm_msg += f"TO these {len(target_ids)} account(s):\n"
+        for tid in target_ids:
+            confirm_msg += f"  • Account {tid}\n"
+        confirm_msg += "\nThis will overwrite their current settings. Continue?"
+        
+        if not messagebox.askyesno("Confirm Overwrite", confirm_msg):
+            return
+        
         # Create temporary filtered list for copy operation
         original_list = manager.user_list
         manager.user_list = targets
@@ -264,8 +258,8 @@ def show_account_selection_dialog(
     ttk.Button(btn_frame, text="Copy to Selected", command=do_copy).pack(side=tk.LEFT, padx=5)
     ttk.Button(btn_frame, text="Cancel", command=dialog.destroy).pack(side=tk.LEFT, padx=5)
     
-    # Center dialog above main window
-    center_dialog(dialog, parent, 500, 450)
+    # Center dialog above main window - larger size
+    center_dialog(dialog, parent, 750, 550)
 
 
 def show_custom_paths_dialog(parent: tk.Tk, data_file, on_paths_changed: Optional[Callable] = None) -> None:

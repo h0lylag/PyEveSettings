@@ -370,10 +370,10 @@ class DataFile:
         
         Returns:
             Sorting preference string (e.g., 'name_asc', 'id_desc', 'date_asc').
-            Defaults to 'name_asc' if not set.
+            Defaults to 'date_desc' if not set.
         """
         window_settings = self._data.get('window_settings', {})
-        return window_settings.get('default_sorting', 'name_asc')
+        return window_settings.get('default_sorting', 'date_desc')
     
     def set_default_sorting(self, sort_preference: str) -> None:
         """Set default sorting preference.
@@ -394,7 +394,7 @@ class DataFile:
                 'height': 600,
                 'x_pos': 0,
                 'y_pos': 0,
-                'default_sorting': 'name_asc'
+                'default_sorting': 'date_desc'
             }
         
         self._data['window_settings']['default_sorting'] = sort_preference
@@ -439,7 +439,7 @@ class DataFile:
                 'height': 600,
                 'x_pos': 0,
                 'y_pos': 0,
-                'default_sorting': 'name_asc',
+                'default_sorting': 'date_desc',
                 'custom_paths': []
             },
             'character_ids': {},

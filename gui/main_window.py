@@ -127,9 +127,14 @@ class PyEveSettingsGUI:
             # Discover available servers
             self.available_servers = self.path_resolver.discover_servers()
             
-            # Set default server (first discovered or tranquility)
+            # Set default server (prefer Tranquility if available)
             if self.available_servers:
-                self.current_server = list(self.available_servers.keys())[0]
+                # Check if Tranquility exists in discovered servers
+                if 'Tranquility' in self.available_servers:
+                    self.current_server = 'Tranquility'
+                else:
+                    # Fall back to first discovered server
+                    self.current_server = list(self.available_servers.keys())[0]
             else:
                 self.current_server = 'Tranquility'
             

@@ -46,6 +46,8 @@ class EventHandlers:
                     self.app.selected_folder = folder
                     break
             self.update_character_lists()
+            # Apply default sorting after updating lists
+            self.app._apply_default_sorting()
     
     def select_custom_folder(self) -> None:
         """Browse for a custom settings folder."""
@@ -95,6 +97,8 @@ class EventHandlers:
         # Set the selected folder and update view
         self.app.selected_folder = custom_folder
         self.update_character_lists()
+        # Apply default sorting after updating lists
+        self.app._apply_default_sorting()
     
     def update_character_lists(self) -> None:
         """Update character and account lists based on selected profile."""
@@ -141,10 +145,6 @@ class EventHandlers:
         # Store filtered lists for copy operation
         self.app.manager.char_list = filtered_chars
         self.app.manager.user_list = filtered_users
-        
-        # Sort by date (default) - most recent first
-        sort_tree(self.app.chars_tree, 'date', True)
-        sort_tree(self.app.accounts_tree, 'date', True)
     
     def edit_char_note(self) -> None:
         """Edit note for selected character."""
