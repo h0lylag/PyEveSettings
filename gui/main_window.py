@@ -109,25 +109,30 @@ class PyEveSettingsGUI:
         # Check for errors
         if not self.settings_folders:
             self.status_label.config(
-                text="Error: Could not find EVE settings directories!",
-                foreground="red"
+                text="No EVE settings directories found. Use 'Custom...' to select a folder.",
+                foreground="orange"
             )
-            messagebox.showerror("Error", 
-                               "Could not find EVE settings directories!\n\n"
-                               "Please run this script from an EVE settings folder or ensure\n"
-                               "EVE is installed at the default location.")
-            self.root.after(100, self.root.quit)
+            messagebox.showwarning("No Directories Found", 
+                               "Could not find EVE settings directories.\n\n"
+                               "You can use the 'Custom...' option to manually select\n"
+                               "a settings folder containing EVE profile files.")
+            # Add Custom option to allow manual selection
+            self.profiles_listbox.insert(tk.END, "Custom...")
             return
         
         if not self.manager.user_list or not self.manager.char_list:
             self.status_label.config(
-                text="Error: Missing user or char files!",
-                foreground="red"
+                text="Warning: Missing user or char files in found directories.",
+                foreground="orange"
             )
-            messagebox.showerror("Error", 
-                               "Missing user or char file!\n\n"
-                               f"Searched in:\n" + "\n".join(str(f) for f in self.settings_folders))
-            self.root.after(100, self.root.quit)
+            messagebox.showwarning("Incomplete Data", 
+                               "Some directories are missing user or char files.\n\n"
+                               f"Searched in:\n" + "\n".join(str(f) for f in self.settings_folders) +
+                               "\n\nYou can use 'Custom...' to select a different folder.")
+            # Still show the profiles list so user can try Custom
+            for folder in self.settings_folders:
+                self.profiles_listbox.insert(tk.END, folder.name)
+            self.profiles_listbox.insert(tk.END, "Custom...")
             return
         
         # Update status label
