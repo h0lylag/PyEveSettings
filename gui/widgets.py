@@ -94,9 +94,9 @@ def create_characters_panel(parent: ttk.Frame) -> dict:
     chars_tree.heading('date', text='Last Modified', command=lambda: sort_tree(chars_tree, 'date', False))
     chars_tree.heading('note', text='Note', command=lambda: sort_tree(chars_tree, 'note', False))
     
-    chars_tree.column('id', width=100, anchor='e')
+    chars_tree.column('id', width=100, anchor='center')
     chars_tree.column('name', width=150, anchor='w')
-    chars_tree.column('date', width=140, anchor='w')
+    chars_tree.column('date', width=140, anchor='center')
     chars_tree.column('note', width=120, anchor='w')
     
     chars_tree.grid(row=0, column=0, sticky="nsew")
@@ -140,8 +140,8 @@ def create_accounts_panel(parent: ttk.Frame) -> dict:
     accounts_tree.heading('date', text='Last Modified', command=lambda: sort_tree(accounts_tree, 'date', False))
     accounts_tree.heading('note', text='Note', command=lambda: sort_tree(accounts_tree, 'note', False))
     
-    accounts_tree.column('id', width=100, anchor='e')
-    accounts_tree.column('date', width=140, anchor='w')
+    accounts_tree.column('id', width=100, anchor='center')
+    accounts_tree.column('date', width=140, anchor='center')
     accounts_tree.column('note', width=120, anchor='w')
     
     accounts_tree.grid(row=0, column=0, sticky="nsew")

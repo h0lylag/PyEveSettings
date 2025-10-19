@@ -8,7 +8,7 @@ from typing import Optional
 from pathlib import Path
 from datetime import datetime
 from utils.models import (get_character_note, set_character_note, 
-                          get_account_note, set_account_note)
+                          get_account_note, set_account_note, is_character_valid)
 from .dialogs import show_character_selection_dialog, show_account_selection_dialog
 from .helpers import sort_tree
 
@@ -99,6 +99,10 @@ class EventHandlers:
         # Update characters treeview
         self.app.chars_tree.delete(*self.app.chars_tree.get_children())
         for char in filtered_chars:
+            # Skip invalid characters
+            if not is_character_valid(char.id):
+                continue
+            
             mtime = char.path.stat().st_mtime
             date_str = datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M')
             note = get_character_note(char.id)

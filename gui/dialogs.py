@@ -47,9 +47,9 @@ def show_character_selection_dialog(parent, source_char: SettingFile, all_chars:
     tree.heading('note', text='Note', command=lambda: sort_tree(tree, 'note', False))
     
     tree.column('#0', width=30, stretch=False)
-    tree.column('id', width=100, anchor='e')
+    tree.column('id', width=100, anchor='center')
     tree.column('name', width=150, anchor='w')
-    tree.column('date', width=140, anchor='w')
+    tree.column('date', width=140, anchor='center')
     tree.column('note', width=120, anchor='w')
     
     tree.grid(row=0, column=0, sticky="nsew")
@@ -153,8 +153,8 @@ def show_account_selection_dialog(parent, source_user: SettingFile, all_users: L
     tree.heading('note', text='Note', command=lambda: sort_tree(tree, 'note', False))
     
     tree.column('#0', width=30, stretch=False)
-    tree.column('id', width=100, anchor='e')
-    tree.column('date', width=140, anchor='w')
+    tree.column('id', width=100, anchor='center')
+    tree.column('date', width=140, anchor='center')
     tree.column('note', width=120, anchor='w')
     
     tree.grid(row=0, column=0, sticky="nsew")

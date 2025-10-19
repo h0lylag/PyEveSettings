@@ -3,7 +3,7 @@ Data models for EVE settings files
 """
 
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, Dict
 from dataclasses import dataclass
 import requests
@@ -36,7 +36,7 @@ _ACCOUNT_NOTES: Dict[int, str] = {}
 _INVALID_CHARACTER_IDS: set = set()
 
 # Cache file path
-_CACHE_FILE = Path(__file__).parent.parent / "py-eve-settings.json"
+_CACHE_FILE = Path(__file__).parent.parent / "PyEveSettings.json"
 
 
 class SettingFile:
@@ -94,35 +94,90 @@ class SettingFile:
                 with open(_CACHE_FILE, 'r') as f:
                     data = json.load(f)
                     
-                    # Load character data
                     names = {}
-                    if 'characters' in data and isinstance(data['characters'], dict):
-                        for char_id, char_data in data['characters'].items():
-                            char_id = int(char_id)
-                            if isinstance(char_data, dict):
-                                # New format: {"name": ..., "note": ...}
-                                names[char_id] = char_data.get('name', 'unknown')
-                                _CHARACTER_NOTES[char_id] = char_data.get('note', '')
-                            else:
-                                # Old format: just the name string
-                                names[char_id] = char_data
                     
-                    # Load invalid character IDs
+                    # New flat format: character_ids at root level
+                    if 'character_ids' in data and isinstance(data['character_ids'], dict):
+                        for char_id, char_data in data['character_ids'].items():
+                            # Skip the old 'invalid' list key if it exists
+                            if char_id == 'invalid':
+                                if isinstance(char_data, list):
+                                    _INVALID_CHARACTER_IDS = set(char_data)
+                                continue
+                            
+                            char_id_int = int(char_id)
+                            if isinstance(char_data, dict):
+                                # Check valid field
+                                is_valid = char_data.get('valid', True)
+                                
+                                if is_valid:
+                                    char_name = char_data.get('name', '')
+                                    if char_name:  # Only add if name is not empty
+                                        names[char_id_int] = char_name
+                                    _CHARACTER_NOTES[char_id_int] = char_data.get('note', '')
+                                    # esi_checked is loaded but not stored globally for now
+                                else:
+                                    # Invalid character - don't add to names cache
+                                    _INVALID_CHARACTER_IDS.add(char_id_int)
+                                    # Still load note if it exists
+                                    if 'note' in char_data and char_data['note']:
+                                        _CHARACTER_NOTES[char_id_int] = char_data['note']
+                    
+                    # Old format: characters.character_ids
+                    elif 'characters' in data and isinstance(data['characters'], dict):
+                        chars_section = data['characters']
+                        
+                        if 'character_ids' in chars_section:
+                            for char_id, char_data in chars_section['character_ids'].items():
+                                char_id_int = int(char_id)
+                                if isinstance(char_data, dict):
+                                    names[char_id_int] = char_data.get('name', 'unknown')
+                                    _CHARACTER_NOTES[char_id_int] = char_data.get('note', '')
+                            
+                            if 'invalid' in chars_section:
+                                _INVALID_CHARACTER_IDS = set(chars_section['invalid'])
+                        else:
+                            # Old format: characters directly contains IDs
+                            for char_id, char_data in chars_section.items():
+                                char_id_int = int(char_id)
+                                if isinstance(char_data, dict):
+                                    names[char_id_int] = char_data.get('name', 'unknown')
+                                    _CHARACTER_NOTES[char_id_int] = char_data.get('note', '')
+                                else:
+                                    names[char_id_int] = char_data
+                    
+                    # Load invalid character IDs from old locations (backward compatibility)
                     if 'invalid_character_ids' in data:
                         _INVALID_CHARACTER_IDS = set(data['invalid_character_ids'])
                     elif 'invalid_ids' in data:
-                        # Old format compatibility
                         _INVALID_CHARACTER_IDS = set(data['invalid_ids'])
                     
-                    # Load account notes (accounts only have notes, no names)
-                    if 'accounts' in data and isinstance(data['accounts'], dict):
-                        for acct_id, acct_data in data['accounts'].items():
-                            acct_id = int(acct_id)
+                    # New flat format: account_ids at root level
+                    if 'account_ids' in data and isinstance(data['account_ids'], dict):
+                        for acct_id, acct_data in data['account_ids'].items():
+                            acct_id_int = int(acct_id)
                             if isinstance(acct_data, dict):
-                                _ACCOUNT_NOTES[acct_id] = acct_data.get('note', '')
-                            else:
-                                # If it's just a string, treat it as a note
-                                _ACCOUNT_NOTES[acct_id] = acct_data if isinstance(acct_data, str) else ''
+                                _ACCOUNT_NOTES[acct_id_int] = acct_data.get('note', '')
+                            elif isinstance(acct_data, str):
+                                _ACCOUNT_NOTES[acct_id_int] = acct_data
+                    
+                    # Old format: accounts.account_ids
+                    elif 'accounts' in data and isinstance(data['accounts'], dict):
+                        accts_section = data['accounts']
+                        
+                        if 'account_ids' in accts_section:
+                            for acct_id, acct_data in accts_section['account_ids'].items():
+                                acct_id_int = int(acct_id)
+                                if isinstance(acct_data, dict):
+                                    _ACCOUNT_NOTES[acct_id_int] = acct_data.get('note', '')
+                        else:
+                            # Old format: accounts directly contains IDs
+                            for acct_id, acct_data in accts_section.items():
+                                acct_id_int = int(acct_id)
+                                if isinstance(acct_data, dict):
+                                    _ACCOUNT_NOTES[acct_id_int] = acct_data.get('note', '')
+                                elif isinstance(acct_data, str):
+                                    _ACCOUNT_NOTES[acct_id_int] = acct_data
                     
                     return names
             except Exception as e:
@@ -133,30 +188,43 @@ class SettingFile:
     def save_cache(cache: Dict[int, str]) -> None:
         """Save character names, notes, and invalid IDs to cache file"""
         try:
-            # Build characters section (name + note only)
-            characters = {}
+            # Build character_ids section with valid field for all IDs
+            character_ids = {}
+            
+            # Add valid characters
             for char_id, char_name in cache.items():
-                characters[str(char_id)] = {
+                character_ids[str(char_id)] = {
                     "name": char_name,
-                    "note": _CHARACTER_NOTES.get(char_id, "")
+                    "note": _CHARACTER_NOTES.get(char_id, ""),
+                    "valid": True,
+                    "esi_checked": datetime.now(timezone.utc).isoformat()
                 }
             
-            # Build accounts section (note only)
-            accounts = {}
+            # Add invalid characters
+            for char_id in _INVALID_CHARACTER_IDS:
+                if str(char_id) not in character_ids:
+                    character_ids[str(char_id)] = {
+                        "name": "",
+                        "note": "",
+                        "valid": False,
+                        "esi_checked": datetime.now(timezone.utc).isoformat()
+                    }
+            
+            # Build account_ids section (note only)
+            account_ids = {}
             for acct_id, note in _ACCOUNT_NOTES.items():
                 if note:  # Only save if there's actually a note
-                    accounts[str(acct_id)] = {
+                    account_ids[str(acct_id)] = {
                         "note": note
                     }
             
-            # Save to file
+            # Save to file with flat structure
             with open(_CACHE_FILE, 'w') as f:
                 data = {
-                    'characters': characters,
-                    'invalid_character_ids': list(_INVALID_CHARACTER_IDS),
-                    'accounts': accounts
+                    'character_ids': character_ids,
+                    'account_ids': account_ids
                 }
-                json.dump(data, f, indent=2)
+                json.dump(data, f, indent=4)
         except Exception as e:
             print(f"Warning: Could not save cache: {e}")
     
@@ -356,3 +424,8 @@ def get_all_character_notes() -> Dict[int, str]:
 def get_all_account_notes() -> Dict[int, str]:
     """Get all account notes"""
     return _ACCOUNT_NOTES.copy()
+
+
+def is_character_valid(char_id: int) -> bool:
+    """Check if a character ID is valid (not in invalid list)"""
+    return char_id not in _INVALID_CHARACTER_IDS
