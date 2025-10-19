@@ -16,6 +16,7 @@ from datetime import datetime
 import threading
 import platform
 import subprocess
+import queue
 
 from utils import BackupManager, EVEPathResolver
 from .helpers import center_dialog
@@ -42,8 +43,11 @@ class BackupManagerWindow:
         # Create dialog window
         self.window = tk.Toplevel(parent)
         self.window.title("Backup Manager - PyEveSettings")
-        self.window.geometry("1000x700")
-        self.window.minsize(800, 500)
+
+        default_width = config.BACKUP_MANAGER_WINDOW_WIDTH
+        default_height = config.BACKUP_MANAGER_WINDOW_HEIGHT
+
+        self.window.geometry(f"{default_width}x{default_height}")
         
         # Make window modal
         self.window.transient(parent)
@@ -58,14 +62,16 @@ class BackupManagerWindow:
         # Operation state
         self.operation_in_progress = False
         self.operation_thread: Optional[threading.Thread] = None
+        self._result_queue: queue.Queue = queue.Queue()
         
         # Create GUI
         self._create_widgets()
         self._setup_event_handlers()
+        self._start_result_poller()
         
         # Center window
         self.window.update_idletasks()
-        center_dialog(self.window, parent, 1000, 700)
+        center_dialog(self.window, parent, default_width, default_height)
         
         # Load initial data
         self.window.after(100, self._load_backups)
@@ -292,19 +298,30 @@ class BackupManagerWindow:
         self._set_controls_state('disabled')
         
         def on_success(message: str):
-            # Schedule UI update on main thread
-            self.window.after(0, lambda: self._set_status(f"✓ Backup created: {message}", "green"))
-            self.window.after(100, self._load_backups)
+            self._enqueue_result(self._on_create_success, message)
         
         def on_error(error: str):
-            # Schedule UI update on main thread
-            self.window.after(0, lambda: self._set_status(f"✗ Backup failed: {error}", "red"))
+            self._enqueue_result(self._on_create_error, error)
         
         def on_complete():
-            # Schedule UI update on main thread
-            self.window.after(0, lambda: (self.progress.stop(), self._set_controls_state('normal')))
+            self._enqueue_result(self._on_create_complete)
         
         BackupOperations.create_backup(profile_path, backup_dir, on_success, on_error, on_complete)
+    
+    def _on_create_success(self, message: str):
+        """Handle successful backup creation (main thread)."""
+        # Message expected to already contain success prefix (e.g., "✓ Backup created: ...")
+        self._set_status(message, "green")
+        self.window.after(150, self._load_backups)
+
+    def _on_create_error(self, error: str):
+        """Handle backup creation errors (main thread)."""
+        self._set_status(error, "red")
+
+    def _on_create_complete(self):
+        """Handle create backup completion."""
+        self.progress.stop()
+        self._set_controls_state('normal')
     
     def _on_restore_backup(self):
         """Handle Restore Backup button."""
@@ -346,20 +363,30 @@ class BackupManagerWindow:
         self._set_controls_state('disabled')
         
         def on_success(message: str):
-            # Schedule UI update on main thread
-            self.window.after(0, lambda: self._set_status(f"✓ {message}", "green"))
-            self.window.after(0, lambda: messagebox.showinfo("Restore Complete", message))
+            self._enqueue_result(self._on_restore_success, message)
         
         def on_error(error: str):
-            # Schedule UI update on main thread
-            self.window.after(0, lambda: self._set_status(f"✗ Restore failed: {error}", "red"))
-            self.window.after(0, lambda: messagebox.showerror("Restore Failed", error))
+            self._enqueue_result(self._on_restore_error, error)
         
         def on_complete():
-            # Schedule UI update on main thread
-            self.window.after(0, lambda: (self.progress.stop(), self._set_controls_state('normal')))
+            self._enqueue_result(self._on_restore_complete)
         
         BackupOperations.restore_backup(backup_path, restore_to, on_success, on_error, on_complete)
+    
+    def _on_restore_success(self, message: str):
+        """Handle successful backup restore (main thread)."""
+        self._set_status(message, "green")
+        messagebox.showinfo("Restore Complete", message)
+
+    def _on_restore_error(self, error: str):
+        """Handle backup restore errors (main thread)."""
+        self._set_status(error, "red")
+        messagebox.showerror("Restore Failed", error)
+
+    def _on_restore_complete(self):
+        """Handle restore backup completion."""
+        self.progress.stop()
+        self._set_controls_state('normal')
     
     def _on_delete_backup(self):
         """Handle Delete Backup button."""
@@ -464,6 +491,7 @@ class BackupManagerWindow:
     
     def _load_backups(self):
         """Load all backups from all installations."""
+        print("[DEBUG] _load_backups() called", flush=True)
         self._set_status("Loading backups...", "blue")
         self.progress.start(10)
         self._set_controls_state('disabled')
@@ -475,30 +503,53 @@ class BackupManagerWindow:
             search_paths.extend(self.path_resolver.custom_paths)
         
         def on_success(backup_data: tuple):
-            # Schedule UI update on main thread
-            self.window.after(0, lambda: self._on_backups_loaded(backup_data))
+            self._enqueue_result(self._on_backups_loaded, backup_data)
         
         def on_error(error: str):
-            # Schedule UI update on main thread
-            self.window.after(0, lambda: self._set_status(error, "red"))
+            self._enqueue_result(self._set_status, error, "red")
         
         def on_complete():
-            # Schedule UI update on main thread
-            self.window.after(0, lambda: self._on_load_complete())
+            self._enqueue_result(self._on_load_complete)
         
+        print("[DEBUG] Starting BackupOperations.load_backups()", flush=True)
         BackupOperations.load_backups(search_paths, on_success, on_error, on_complete)
+    
+    def _enqueue_result(self, callback, *args):
+        """Enqueue a callback to be executed on the main thread."""
+        self._result_queue.put((callback, args))
+
+    def _start_result_poller(self) -> None:
+        """Start polling the result queue for background thread callbacks."""
+        self.window.after(50, self._poll_result_queue)
+
+    def _poll_result_queue(self) -> None:
+        """Process queued callbacks from background threads."""
+        try:
+            while True:
+                callback, args = self._result_queue.get_nowait()
+                callback(*args)
+        except queue.Empty:
+            pass
+        finally:
+            self.window.after(50, self._poll_result_queue)
     
     def _on_backups_loaded(self, backup_data: tuple):
         """Handle backups loaded successfully (called on main thread)."""
+        print(f"[DEBUG] _on_backups_loaded called, data type: {type(backup_data)}", flush=True)
         backup_directories, all_backups = backup_data
+        print(f"[DEBUG] Unpacked: {len(backup_directories)} dirs, {len(all_backups)} backups", flush=True)
         self.backup_directories = backup_directories
         self.all_backups = all_backups
+        print("[DEBUG] Calling _update_backup_display()", flush=True)
         self._update_backup_display()
+        print("[DEBUG] _update_backup_display() returned", flush=True)
     
     def _on_load_complete(self):
         """Handle load operation complete (called on main thread)."""
+        print("[DEBUG] _on_load_complete called", flush=True)
         self.progress.stop()
         self._set_controls_state('normal')
+        print("[DEBUG] Progress stopped, controls enabled", flush=True)
     
     def _update_backup_display(self):
         """Update the display with loaded backups."""
@@ -515,9 +566,8 @@ class BackupManagerWindow:
             self._set_status(f"Loaded {len(self.all_backups)} backup(s)", "green")
         except Exception as e:
             self._set_status(f"Error updating display: {e}", "red")
-        finally:
-            self.progress.stop()
-            self._set_controls_state('normal')
+            import traceback
+            traceback.print_exc()  # Print full traceback for debugging
     
     def _update_filter_options(self):
         """Update filter combobox options based on loaded data."""
