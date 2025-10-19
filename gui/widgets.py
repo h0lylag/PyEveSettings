@@ -48,8 +48,17 @@ def create_menu_bar(root: tk.Tk) -> dict:
     }
 
 
-def create_main_layout(root: tk.Tk) -> dict:
-    """Create main GUI layout and return references to important widgets"""
+def create_main_layout(root: tk.Tk, sash_positions=None) -> dict:
+    """Create main GUI layout and return references to important widgets
+    
+    Args:
+        root: The root Tk window
+        sash_positions: Optional list of [sash0_pos, sash1_pos] for PanedWindow dividers.
+                       If None, uses default positions from config.
+    
+    Returns:
+        Dictionary of widget references including 'paned_window' reference
+    """
     # Configure grid weights for responsive layout
     root.columnconfigure(0, weight=1)
     root.rowconfigure(0, weight=1)
@@ -57,9 +66,7 @@ def create_main_layout(root: tk.Tk) -> dict:
     # Main container
     main_frame = ttk.Frame(root, padding=str(config.MAIN_PADDING))
     main_frame.grid(row=0, column=0, sticky="nsew")
-    main_frame.columnconfigure(0, weight=config.PROFILES_PANEL_WEIGHT, minsize=config.PROFILES_MIN_WIDTH)
-    main_frame.columnconfigure(1, weight=config.CHARACTERS_PANEL_WEIGHT, minsize=config.CHARACTERS_MIN_WIDTH)
-    main_frame.columnconfigure(2, weight=config.ACCOUNTS_PANEL_WEIGHT, minsize=config.ACCOUNTS_MIN_WIDTH)
+    main_frame.columnconfigure(0, weight=1)
     main_frame.rowconfigure(3, weight=1)  # Adjusted for server selector
     
     # Server selector at the very top
@@ -105,12 +112,19 @@ def create_main_layout(root: tk.Tk) -> dict:
     paned_window.add(chars_container, weight=config.CHARACTERS_PANEL_WEIGHT)
     paned_window.add(accounts_container, weight=config.ACCOUNTS_PANEL_WEIGHT)
     
+    # Apply saved sash positions if provided
+    if sash_positions:
+        # Schedule sash position setting after window is fully rendered
+        # This is necessary because sash positions can't be set until the widget is mapped
+        # Using a longer delay (100ms) to ensure window is fully laid out
+        root.after(100, lambda: _apply_sash_positions(paned_window, sash_positions))
+    
     # Create panels inside their containers
     profiles_widgets = create_profiles_panel(profiles_container)
     chars_widgets = create_characters_panel(chars_container)
     accounts_widgets = create_accounts_panel(accounts_container)
     
-    # Return all widget references
+    # Return all widget references including paned_window for saving positions later
     return {
         'server_var': server_var,
         'server_combo': server_combo,
@@ -118,10 +132,27 @@ def create_main_layout(root: tk.Tk) -> dict:
         'path_var': path_var,
         'path_entry': path_entry,
         'progress': progress,
+        'paned_window': paned_window,
         **profiles_widgets,
         **chars_widgets,
         **accounts_widgets
     }
+
+
+def _apply_sash_positions(paned_window, positions):
+    """Apply sash positions to a PanedWindow.
+    
+    Args:
+        paned_window: The ttk.PanedWindow widget
+        positions: List of [sash0_pos, sash1_pos] positions in pixels
+    """
+    try:
+        if len(positions) >= 2:
+            paned_window.sashpos(0, positions[0])
+            paned_window.sashpos(1, positions[1])
+    except Exception:
+        # Silently ignore errors (e.g., if window not yet mapped)
+        pass
 
 
 def create_profiles_panel(parent: ttk.Frame) -> dict:

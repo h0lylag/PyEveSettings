@@ -36,10 +36,10 @@ PROFILES_PANEL_WEIGHT = 1   # Profiles panel (left)
 CHARACTERS_PANEL_WEIGHT = 2  # Characters panel (middle)
 ACCOUNTS_PANEL_WEIGHT = 2    # Accounts panel (right)
 
-# Column minimum sizes (pixels)
-PROFILES_MIN_WIDTH = 200
-CHARACTERS_MIN_WIDTH = 400
-ACCOUNTS_MIN_WIDTH = 400
+# PanedWindow sash default positions (pixels from left edge)
+# Note: PanedWindow has 2 sashes for 3 panels
+DEFAULT_SASH_0 = 250   # First divider (between profiles and characters)
+DEFAULT_SASH_1 = 1150   # Second divider (between characters and accounts)
 
 # Font sizes
 DEFAULT_FONT_SIZE = 10

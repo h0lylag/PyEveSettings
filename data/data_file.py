@@ -505,6 +505,28 @@ class DataFile:
         """
         self._data['app_settings']['custom_paths'] = paths
     
+    def get_sash_positions(self) -> List[int]:
+        """Get PanedWindow sash positions.
+        
+        Returns:
+            List of two integers representing sash positions in pixels.
+            Defaults to configured defaults if not set.
+        """
+        app_settings = self._data.get('app_settings', {})
+        return app_settings.get('sash_positions', [config.DEFAULT_SASH_0, config.DEFAULT_SASH_1])
+    
+    def set_sash_positions(self, positions: List[int]) -> None:
+        """Set PanedWindow sash positions.
+        
+        Args:
+            positions: List of two integers representing sash positions in pixels.
+        """
+        if len(positions) != 2:
+            raise ValidationError(
+                f"Expected 2 sash positions, got {len(positions)}"
+            )
+        self._data['app_settings']['sash_positions'] = positions
+    
     @staticmethod
     def _get_default_structure() -> Dict:
         """Get the default data structure for a fresh installation.
@@ -530,6 +552,7 @@ class DataFile:
                 'height': config.DEFAULT_WINDOW_HEIGHT,
                 'x_pos': config.DEFAULT_WINDOW_X,
                 'y_pos': config.DEFAULT_WINDOW_Y,
+                'sash_positions': [config.DEFAULT_SASH_0, config.DEFAULT_SASH_1],  # PanedWindow divider positions
                 'default_sorting': config.DEFAULT_SORTING,
                 'custom_paths': []      # No custom EVE paths by default
             },

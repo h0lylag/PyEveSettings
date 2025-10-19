@@ -36,6 +36,7 @@ class PyEveSettingsGUI:
         self.loading = True
         self.selected_folder: Optional[Path] = None
         self.resize_timer: Optional[str] = None
+        self.sash_timer: Optional[str] = None
         
         # Initialize application layers
         self._init_data_layer()
@@ -176,8 +177,9 @@ class PyEveSettingsGUI:
         # Connect sort var trace to save preference
         self.sort_var.trace_add('write', self._on_sort_changed)
         
-        # Create main layout
-        widgets = create_main_layout(self.root)
+        # Create main layout with saved sash positions
+        sash_positions = self.data_file.get_sash_positions()
+        widgets = create_main_layout(self.root, sash_positions)
         
         # Store widget references
         self.server_var = widgets['server_var']
@@ -190,6 +192,7 @@ class PyEveSettingsGUI:
         self.chars_tree = widgets['chars_tree']
         self.accounts_tree = widgets['accounts_tree']
         self.backup_status_var = widgets['backup_status_var']
+        self.paned_window = widgets['paned_window']
         
         # Store button widgets for event handler binding
         self._widgets = widgets
@@ -221,6 +224,11 @@ class PyEveSettingsGUI:
         
         # Bind window resize/move event to save settings
         self.root.bind('<Configure>', self._handle_window_configure)
+        
+        # Bind PanedWindow sash movement to save sash positions
+        # Note: PanedWindow doesn't have a specific sash event, so we bind to <ButtonRelease-1>
+        # which fires when user releases mouse button after dragging
+        self.paned_window.bind('<ButtonRelease-1>', self._handle_sash_moved)
     
     def _handle_window_configure(self, event: tk.Event) -> None:
         """Handle window resize and move events and save the new settings.
@@ -241,8 +249,38 @@ class PyEveSettingsGUI:
         # Set a new timer to save the size after 500ms of no resizing
         self.resize_timer = self.root.after(500, self._save_window_state)
     
+    def _handle_sash_moved(self, event: tk.Event) -> None:
+        """Handle sash movement in the PanedWindow.
+        
+        Uses a timer to debounce rapid sash movements.
+        
+        Args:
+            event: The button release event from tkinter.
+        """
+        # Cancel previous timer if it exists
+        if self.sash_timer is not None:
+            self.root.after_cancel(self.sash_timer)
+        
+        # Set a new timer to save sash positions after 300ms of no movement
+        self.sash_timer = self.root.after(300, self._save_sash_positions)
+    
+    def _save_sash_positions(self) -> None:
+        """Save the current sash positions to the data file."""
+        try:
+            sash0 = self.paned_window.sashpos(0)
+            sash1 = self.paned_window.sashpos(1)
+            # Only save if positions are reasonable (> 50 pixels to avoid saving uninitialized values)
+            if sash0 > 50 and sash1 > 50:
+                self.data_file.set_sash_positions([sash0, sash1])
+                self.data_file.save()
+        except Exception:
+            # Silently ignore if sash positions can't be read
+            pass
+        
+        self.sash_timer = None
+    
     def _save_window_state(self) -> None:
-        """Save the current window size and position."""
+        """Save the current window size, position, and panel sash positions."""
         width = self.root.winfo_width()
         height = self.root.winfo_height()
         x_pos = self.root.winfo_x()
@@ -251,8 +289,20 @@ class PyEveSettingsGUI:
         # Update window settings object
         self.window_settings.update(width, height, x_pos, y_pos)
         
-        # Save to data file
+        # Save window geometry to data file
         self.data_file.set_window_settings(width, height, x_pos, y_pos)
+        
+        # Save sash positions (only if they're valid/reasonable values)
+        try:
+            sash0 = self.paned_window.sashpos(0)
+            sash1 = self.paned_window.sashpos(1)
+            # Only save if positions are reasonable (> 50 pixels to avoid saving uninitialized values)
+            if sash0 > 50 and sash1 > 50:
+                self.data_file.set_sash_positions([sash0, sash1])
+        except Exception:
+            # Silently ignore if sash positions can't be read
+            pass
+        
         self.data_file.save()
         
         self.resize_timer = None
