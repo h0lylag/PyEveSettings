@@ -1,5 +1,5 @@
 """
-Utils package for EANM
+Utils package for py-eve-settings
 """
 
 from .core import SettingsManager

@@ -2,6 +2,6 @@
 GUI package initialization
 """
 
-from .main_window import EANMGUI
+from .main_window import PyEveSettingsGUI
 
-__all__ = ['EANMGUI']
+__all__ = ['PyEveSettingsGUI']

@@ -1,14 +1,14 @@
 """
-Main entry point for EANM application
+Main entry point for py-eve-settings application
 """
 
-from gui import EANMGUI
+from gui import PyEveSettingsGUI
 
 
 def main():
     """Main entry point"""
     try:
-        app = EANMGUI()
+        app = PyEveSettingsGUI()
         app.run()
     except Exception as e:
         print(f"Error: {e}")

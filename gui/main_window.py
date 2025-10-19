@@ -1,5 +1,5 @@
 """
-Main GUI window for EANM
+Main GUI window for py-eve-settings
 """
 
 import tkinter as tk
@@ -13,8 +13,8 @@ from utils.models import (SettingFile, get_character_note, set_character_note,
                           get_all_character_notes, get_all_account_notes)
 
 
-class EANMGUI:
-    """Main GUI application for EANM"""
+class PyEveSettingsGUI:
+    """Main GUI application for py-eve-settings"""
     
     def __init__(self):
         self.root = tk.Tk()

@@ -1,5 +1,5 @@
 """
-EANM - Eve Accounts Neat Manager (Python Port)
+py-eve-settings - EVE Online Settings Manager
 Simple settings manager for EVE Online
 Author: Python port
 Date: October 18, 2025
